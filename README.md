@@ -133,3 +133,4 @@ DB_PASSWORD         — Database password
 JWT_SECRET          — Min 256-bit hex string (use openssl rand -hex 32)
 ```
 # lendos
+# lendos
