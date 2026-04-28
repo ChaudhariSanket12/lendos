@@ -4,7 +4,7 @@ import com.lendos.common.entity.BaseEntity;
 import com.lendos.identity.entity.Tenant;
 import jakarta.persistence.*;
 import lombok.*;
-import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /**
  * MODULE 2 — Borrower & Onboarding
@@ -25,18 +25,20 @@ public class Borrower extends BaseEntity {
     private Tenant tenant;
 
     @Column(nullable = false)
-    private String fullName;
+    private String firstName;
+
+    @Column(nullable = false)
+    private String lastName;
 
     @Column(nullable = false)
     private String email;
 
     private String phone;
 
-    @Column(unique = true)
-    private String panNumber;
+    private LocalDate dateOfBirth;
 
-    @Column(precision = 15, scale = 2)
-    private BigDecimal monthlyIncome;
+    @Column(columnDefinition = "TEXT")
+    private String address;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

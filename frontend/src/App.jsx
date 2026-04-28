@@ -3,6 +3,9 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import RegisterPage from './pages/RegisterPage'
+import BorrowersPage from './pages/BorrowersPage'
+import BorrowerCreatePage from './pages/BorrowerCreatePage'
+import BorrowerDetailPage from './pages/BorrowerDetailPage'
 
 // ── Protected route wrapper ───────────────────────────────────
 function ProtectedRoute({ children }) {
@@ -45,6 +48,33 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/borrowers"
+        element={
+          <ProtectedRoute>
+            <BorrowersPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/borrowers/new"
+        element={
+          <ProtectedRoute>
+            <BorrowerCreatePage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/borrowers/:borrowerId"
+        element={
+          <ProtectedRoute>
+            <BorrowerDetailPage />
           </ProtectedRoute>
         }
       />

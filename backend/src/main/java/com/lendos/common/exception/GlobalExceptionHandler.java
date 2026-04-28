@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -50,19 +52,49 @@ public class GlobalExceptionHandler {
                         .rejectedValue(fe.getRejectedValue())
                         .build())
                 .collect(Collectors.toList());
+        Map<String, String> errors = new LinkedHashMap<>();
+        fieldErrors.forEach(fe -> errors.putIfAbsent(fe.getField(), fe.getMessage()));
 
         log.warn("Validation failed for request: {} | fields: {}", request.getRequestURI(), fieldErrors);
 
         ErrorResponse response = ErrorResponse.builder()
                 .correlationId(MDC.get("correlationId"))
                 .errorCode("VALIDATION_FAILED")
-                .message("Request validation failed")
+                .message("Validation failed")
                 .status(HttpStatus.BAD_REQUEST.value())
                 .timestamp(LocalDateTime.now())
+                .errors(errors)
                 .fieldErrors(fieldErrors)
                 .build();
 
         return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<ErrorResponse> handleValidationException(
+            ValidationException ex, HttpServletRequest request) {
+
+        log.warn("Validation exception: {} | path={} | errors={} | correlationId={}",
+                ex.getMessage(), request.getRequestURI(), ex.getErrors(), MDC.get("correlationId"));
+
+        List<ErrorResponse.FieldError> fieldErrors = ex.getErrors().entrySet().stream()
+                .map(entry -> ErrorResponse.FieldError.builder()
+                        .field(entry.getKey())
+                        .message(entry.getValue())
+                        .build())
+                .toList();
+
+        ErrorResponse response = ErrorResponse.builder()
+                .correlationId(MDC.get("correlationId"))
+                .errorCode(ex.getErrorCode())
+                .message(ex.getMessage())
+                .status(ex.getHttpStatus().value())
+                .timestamp(LocalDateTime.now())
+                .errors(ex.getErrors())
+                .fieldErrors(fieldErrors)
+                .build();
+
+        return ResponseEntity.status(ex.getHttpStatus()).body(response);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

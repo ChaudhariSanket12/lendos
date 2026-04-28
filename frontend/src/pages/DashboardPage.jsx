@@ -1,7 +1,9 @@
 import { useAuth } from '../context/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
 export default function DashboardPage() {
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -30,7 +32,7 @@ export default function DashboardPage() {
         {/* Module cards — expand as modules are built */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
-            { title: 'Borrowers', desc: 'Manage borrower profiles', color: 'blue' },
+            { title: 'Borrowers', desc: 'Manage borrower profiles', route: '/borrowers' },
             { title: 'Loans', desc: 'Loan lifecycle management', color: 'green' },
             { title: 'Payments', desc: 'EMI schedule & payments', color: 'purple' },
             { title: 'Ledger', desc: 'Double-entry accounting', color: 'orange' },
@@ -39,13 +41,20 @@ export default function DashboardPage() {
           ].map((card) => (
             <div
               key={card.title}
+              onClick={() => card.route && navigate(card.route)}
               className="bg-white rounded-lg border border-gray-200 p-5 cursor-pointer hover:shadow-md transition-shadow"
             >
               <h3 className="font-semibold text-gray-800">{card.title}</h3>
               <p className="text-sm text-gray-500 mt-1">{card.desc}</p>
-              <span className="inline-block mt-3 text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                Coming soon
-              </span>
+              {card.route ? (
+                <span className="inline-block mt-3 text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                  Open module
+                </span>
+              ) : (
+                <span className="inline-block mt-3 text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                  Coming soon
+                </span>
+              )}
             </div>
           ))}
         </div>
