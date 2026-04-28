@@ -1,0 +1,37 @@
+# Secrets — NEVER commit these
+.env
+.env.*
+!.env.example
+*.env.local
+**/.env
+
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# IDE
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+*.classpath
+*.project
+*.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Spring Boot
+spring-shell.log
+
+# Node (frontend)
+frontend/node_modules/
+frontend/dist/
