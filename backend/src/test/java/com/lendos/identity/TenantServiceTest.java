@@ -46,6 +46,7 @@ class TenantServiceTest {
         Tenant savedTenant = Tenant.builder()
                 .name("Alpha CA Firm")
                 .slug("alpha-ca-firm")
+                .firmCode("ALPHACAF-AB12")
                 .contactEmail("admin@alphaca.com")
                 .status(Tenant.TenantStatus.ACTIVE)
                 .build();
@@ -58,6 +59,7 @@ class TenantServiceTest {
         } catch (Exception ignored) {}
 
         when(tenantRepository.existsBySlug(anyString())).thenReturn(false);
+        when(tenantRepository.existsByFirmCodeIgnoreCase(anyString())).thenReturn(false);
         when(tenantRepository.save(any(Tenant.class))).thenReturn(savedTenant);
         when(passwordEncoder.encode(anyString())).thenReturn("$2a$12$encodedPassword");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -111,11 +113,13 @@ class TenantServiceTest {
         Tenant savedTenant = Tenant.builder()
                 .name("My Finance Corp")
                 .slug("my-finance-corp")
+                .firmCode("MYFINANC-A1B2")
                 .contactEmail("admin@mfc.com")
                 .status(Tenant.TenantStatus.ACTIVE)
                 .build();
 
         when(tenantRepository.existsBySlug(anyString())).thenReturn(false);
+        when(tenantRepository.existsByFirmCodeIgnoreCase(anyString())).thenReturn(false);
         when(tenantRepository.save(any(Tenant.class))).thenReturn(savedTenant);
         when(passwordEncoder.encode(anyString())).thenReturn("encoded");
         when(userRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));

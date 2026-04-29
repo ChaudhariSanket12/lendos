@@ -93,7 +93,7 @@ class AuthServiceTest {
                 .build();
 
         when(authenticationManager.authenticate(any())).thenReturn(authToken);
-        when(userRepository.findByEmail("admin@testca.com")).thenReturn(Optional.of(activeUser));
+        when(userRepository.findByEmailIgnoreCase("admin@testca.com")).thenReturn(Optional.of(activeUser));
         when(jwtService.generateAccessToken(any(), any())).thenReturn("mock.jwt.token");
         when(refreshTokenService.createRefreshToken(activeUser)).thenReturn(refreshToken);
 
@@ -122,7 +122,7 @@ class AuthServiceTest {
                 new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
 
         when(authenticationManager.authenticate(any())).thenReturn(authToken);
-        when(userRepository.findByEmail("inactive@testca.com")).thenReturn(Optional.of(inactiveUser));
+        when(userRepository.findByEmailIgnoreCase("inactive@testca.com")).thenReturn(Optional.of(inactiveUser));
 
         // Act & Assert
         assertThatThrownBy(() -> authService.login(request))

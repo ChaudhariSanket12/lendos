@@ -15,4 +15,10 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
     boolean existsBySlug(String slug);
 
     boolean existsByName(String name);
+
+    Optional<Tenant> findFirstByOrderByCreatedAtAsc();
+
+    Optional<Tenant> findByFirmCodeIgnoreCase(String firmCode);
+
+    boolean existsByFirmCodeIgnoreCase(String firmCode);
 }

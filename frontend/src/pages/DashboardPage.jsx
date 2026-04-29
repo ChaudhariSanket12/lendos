@@ -1,9 +1,39 @@
+import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { tenantApi } from '../api/identity'
 
 export default function DashboardPage() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [firmCode, setFirmCode] = useState(null)
+  const [copyStatus, setCopyStatus] = useState('')
+
+  useEffect(() => {
+    const loadFirmCode = async () => {
+      if (user?.role !== 'ADMIN') return
+      try {
+        const data = await tenantApi.getMyFirmCode()
+        console.log('[DashboardPage] Loaded firm code', data)
+        setFirmCode(data.firmCode)
+      } catch (err) {
+        console.error('[DashboardPage] Failed to load firm code', err)
+      }
+    }
+    loadFirmCode()
+  }, [user?.role])
+
+  const copyFirmCode = async () => {
+    if (!firmCode) return
+    try {
+      await navigator.clipboard.writeText(firmCode)
+      setCopyStatus('Copied')
+      setTimeout(() => setCopyStatus(''), 1500)
+    } catch (err) {
+      console.error('[DashboardPage] Failed to copy firm code', err)
+      setCopyStatus('Copy failed')
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -28,6 +58,18 @@ export default function DashboardPage() {
           Tenant: <span className="font-medium text-gray-700">{user?.tenantName}</span>
           &nbsp;·&nbsp; Role: <span className="font-medium text-gray-700">{user?.role}</span>
         </p>
+
+        {user?.role === 'ADMIN' && (
+          <div className="card mb-6">
+            <h3 className="text-lg font-semibold text-gray-800">Your Firm Code: {firmCode || 'Loading...'}</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Share this code with borrowers so they can register under your firm.
+            </p>
+            <button className="btn-secondary mt-3" onClick={copyFirmCode} disabled={!firmCode}>
+              {copyStatus || 'Copy'}
+            </button>
+          </div>
+        )}
 
         {/* Module cards — expand as modules are built */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

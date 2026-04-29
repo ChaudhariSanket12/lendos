@@ -70,7 +70,7 @@ class UserServiceTest {
         request.setRole(User.Role.CREDIT_OFFICER);
 
         when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
-        when(userRepository.existsByEmailAndTenant("new@testfirm.com", tenant)).thenReturn(false);
+        when(userRepository.existsByTenant_IdAndEmailIgnoreCase(tenantId, "new@testfirm.com")).thenReturn(false);
         when(passwordEncoder.encode("pass12345")).thenReturn("encoded");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -91,7 +91,7 @@ class UserServiceTest {
         request.setRole(User.Role.CREDIT_OFFICER);
 
         when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
-        when(userRepository.existsByEmailAndTenant("officer@testfirm.com", tenant)).thenReturn(true);
+        when(userRepository.existsByTenant_IdAndEmailIgnoreCase(tenantId, "officer@testfirm.com")).thenReturn(true);
 
         assertThatThrownBy(() -> userService.createUser(tenantId, request))
                 .isInstanceOf(BusinessException.class)

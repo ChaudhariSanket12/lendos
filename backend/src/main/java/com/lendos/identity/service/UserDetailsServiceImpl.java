@@ -10,6 +10,9 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.util.Locale;
 
 @Slf4j
 @Service
@@ -21,10 +24,11 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        User user = userRepository.findByEmail(email)
+        String normalizedEmail = StringUtils.hasText(email) ? email.trim().toLowerCase(Locale.ENGLISH) : email;
+        User user = userRepository.findByEmailIgnoreCase(normalizedEmail)
                 .orElseThrow(() -> {
-                    log.warn("User not found with email: {}", email);
-                    return new UsernameNotFoundException("User not found: " + email);
+                    log.warn("User not found with email: {}", normalizedEmail);
+                    return new UsernameNotFoundException("User not found: " + normalizedEmail);
                 });
         return new LendosUserDetails(user);
     }

@@ -1,5 +1,7 @@
 package com.lendos.identity.controller;
 
+import com.lendos.borrower.service.BorrowerPortalService;
+import com.lendos.identity.dto.BorrowerAuthDtos;
 import com.lendos.identity.dto.IdentityDtos;
 import com.lendos.identity.security.LendosUserDetails;
 import com.lendos.identity.service.AuthService;
@@ -21,6 +23,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final TenantService tenantService;
+    private final BorrowerPortalService borrowerPortalService;
 
     @PostMapping("/register")
     @Operation(summary = "Register a new tenant (organization) with an admin user")
@@ -34,6 +37,15 @@ public class AuthController {
     public ResponseEntity<IdentityDtos.AuthResponse> login(
             @Valid @RequestBody IdentityDtos.LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/borrower/register")
+    @Operation(summary = "Register a borrower account and borrower profile")
+    public ResponseEntity<BorrowerAuthDtos.BorrowerAuthResponse> registerBorrower(
+            @Valid @RequestBody BorrowerAuthDtos.RegisterBorrowerRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                borrowerPortalService.registerBorrower(request)
+        );
     }
 
     @PostMapping("/refresh")

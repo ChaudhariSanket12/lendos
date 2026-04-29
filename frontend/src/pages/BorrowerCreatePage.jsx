@@ -28,10 +28,13 @@ export default function BorrowerCreatePage() {
     phone: '',
     dateOfBirth: '',
     address: '',
+    createLogin: false,
+    password: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [fieldErrors, setFieldErrors] = useState({})
+  const [showPassword, setShowPassword] = useState(false)
 
   const set = (field) => (e) => setForm({ ...form, [field]: e.target.value })
 
@@ -75,6 +78,10 @@ export default function BorrowerCreatePage() {
       errors.address = 'Address must be at least 5 characters'
     }
 
+    if (form.createLogin && form.password.trim().length < 8) {
+      errors.password = 'Password must be at least 8 characters when login access is enabled'
+    }
+
     return errors
   }
 
@@ -101,6 +108,8 @@ export default function BorrowerCreatePage() {
         phone: form.phone.trim(),
         dateOfBirth: form.dateOfBirth,
         address: form.address.trim(),
+        createLogin: form.createLogin,
+        password: form.createLogin ? form.password : null,
       })
 
       navigate('/borrowers', { state: { message: 'Borrower added successfully.' } })
@@ -201,6 +210,41 @@ export default function BorrowerCreatePage() {
                 value={form.address}
                 onChange={set('address')}
               />
+            </div>
+
+            <div className="border border-gray-200 rounded-md p-4 bg-gray-50">
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.createLogin}
+                  onChange={(e) => setForm({ ...form, createLogin: e.target.checked })}
+                />
+                Create login access for this borrower
+              </label>
+
+              {form.createLogin && (
+                <div className="mt-3">
+                  <label className="label">Initial Password</label>
+                  <div className="flex gap-2">
+                    <input
+                      className="input"
+                      type={showPassword ? 'text' : 'password'}
+                      value={form.password}
+                      onChange={set('password')}
+                      minLength={8}
+                      required={form.createLogin}
+                      placeholder="Minimum 8 characters"
+                    />
+                    <button
+                      type="button"
+                      className="btn-secondary whitespace-nowrap"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                    >
+                      {showPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3 pt-2">

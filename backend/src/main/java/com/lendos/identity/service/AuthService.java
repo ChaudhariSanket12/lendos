@@ -16,7 +16,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.util.Locale;
 import java.util.Map;
 
 @Slf4j
@@ -31,12 +33,13 @@ public class AuthService {
 
     @Transactional
     public IdentityDtos.AuthResponse login(IdentityDtos.LoginRequest request) {
+        String normalizedEmail = normalizeEmail(request.getEmail());
         Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(normalizedEmail, request.getPassword())
         );
 
         LendosUserDetails userDetails = (LendosUserDetails) authentication.getPrincipal();
-        User user = userRepository.findByEmail(userDetails.getUsername())
+        User user = userRepository.findByEmailIgnoreCase(userDetails.getUsername())
                 .orElseThrow(() -> new ResourceNotFoundException("User", userDetails.getUsername()));
 
         if (user.getStatus() != User.UserStatus.ACTIVE) {
@@ -93,10 +96,17 @@ public class AuthService {
 
     @Transactional
     public void logout(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
+        User user = userRepository.findByEmailIgnoreCase(normalizeEmail(userEmail))
                 .orElseThrow(() -> new ResourceNotFoundException("User", userEmail));
         refreshTokenService.revokeAllUserTokens(user);
         log.info("User logged out: {}", userEmail);
+    }
+
+    private String normalizeEmail(String email) {
+        if (!StringUtils.hasText(email)) {
+            return email;
+        }
+        return email.trim().toLowerCase(Locale.ENGLISH);
     }
 
     private IdentityDtos.UserResponse mapToUserResponse(User user) {

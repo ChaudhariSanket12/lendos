@@ -20,6 +20,8 @@ public interface BorrowerRepository extends JpaRepository<Borrower, UUID> {
 
     Optional<Borrower> findByIdAndTenant_Id(UUID borrowerId, UUID tenantId);
 
+    Optional<Borrower> findByTenant_IdAndUser_Id(UUID tenantId, UUID userId);
+
     boolean existsByTenant_IdAndEmailIgnoreCase(UUID tenantId, String email);
 
     boolean existsByTenant_IdAndPhone(UUID tenantId, String phone);

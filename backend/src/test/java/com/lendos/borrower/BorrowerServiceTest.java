@@ -8,7 +8,9 @@ import com.lendos.common.exception.BusinessException;
 import com.lendos.common.exception.ResourceNotFoundException;
 import com.lendos.common.exception.ValidationException;
 import com.lendos.identity.entity.Tenant;
+import com.lendos.identity.entity.User;
 import com.lendos.identity.repository.TenantRepository;
+import com.lendos.identity.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -36,6 +39,8 @@ class BorrowerServiceTest {
 
     @Mock private BorrowerRepository borrowerRepository;
     @Mock private TenantRepository tenantRepository;
+    @Mock private UserRepository userRepository;
+    @Mock private PasswordEncoder passwordEncoder;
 
     @InjectMocks
     private BorrowerService borrowerService;
@@ -89,6 +94,7 @@ class BorrowerServiceTest {
         assertThat(response.getStatus()).isEqualTo(Borrower.BorrowerStatus.DRAFT);
         assertThat(response.getEmail()).isEqualTo("aarav@test.com");
         assertThat(response.getPhone()).isEqualTo("919876543210");
+        assertThat(response.isHasLoginAccess()).isFalse();
     }
 
     @Test
@@ -158,6 +164,61 @@ class BorrowerServiceTest {
                 .isThrownBy(() -> borrowerService.createBorrower(tenantId, request))
                 .satisfies(ex -> assertThat(ex.getErrors().get("email"))
                         .isEqualTo("A borrower with this email already exists"));
+    }
+
+    @Test
+    @DisplayName("Create borrower with login access creates BORROWER user and links borrower")
+    void createBorrower_withLoginAccess_createsLinkedUser() {
+        BorrowerDtos.CreateBorrowerRequest request = new BorrowerDtos.CreateBorrowerRequest();
+        request.setFirstName("Aarav");
+        request.setLastName("Jain");
+        request.setEmail("aarav.login@test.com");
+        request.setPhone("9876543210");
+        request.setDateOfBirth(LocalDate.of(1994, 1, 12));
+        request.setAddress("123 Main Street");
+        request.setCreateLogin(true);
+        request.setPassword("Borrower@123");
+
+        User borrowerUser = User.builder()
+                .email("aarav.login@test.com")
+                .role(User.Role.BORROWER)
+                .status(User.UserStatus.ACTIVE)
+                .tenant(tenant)
+                .build();
+        borrowerUser.setId(UUID.randomUUID());
+
+        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
+        when(borrowerRepository.existsByTenant_IdAndEmailIgnoreCase(tenantId, "aarav.login@test.com")).thenReturn(false);
+        when(borrowerRepository.existsByTenant_IdAndPhone(tenantId, "9876543210")).thenReturn(false);
+        when(userRepository.existsByTenant_IdAndEmailIgnoreCase(tenantId, "aarav.login@test.com")).thenReturn(false);
+        when(passwordEncoder.encode("Borrower@123")).thenReturn("encoded");
+        when(userRepository.save(any(User.class))).thenReturn(borrowerUser);
+        when(borrowerRepository.save(any(Borrower.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BorrowerDtos.BorrowerResponse response = borrowerService.createBorrower(tenantId, request);
+
+        assertThat(response.isHasLoginAccess()).isTrue();
+        verify(userRepository).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("Delete borrower removes linked BORROWER user in same flow")
+    void deleteBorrower_withLinkedBorrowerUser_deletesUserToo() {
+        User linkedUser = User.builder()
+                .email("riya@test.com")
+                .role(User.Role.BORROWER)
+                .tenant(tenant)
+                .status(User.UserStatus.ACTIVE)
+                .build();
+        linkedUser.setId(UUID.randomUUID());
+        borrower.setUser(linkedUser);
+
+        when(borrowerRepository.findByIdAndTenant_Id(borrowerId, tenantId)).thenReturn(Optional.of(borrower));
+
+        borrowerService.deleteBorrower(tenantId, borrowerId);
+
+        verify(borrowerRepository).delete(borrower);
+        verify(userRepository).deleteById(linkedUser.getId());
     }
 
     @Test

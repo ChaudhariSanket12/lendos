@@ -7,9 +7,12 @@ import com.lendos.common.exception.BusinessException;
 import com.lendos.common.exception.ResourceNotFoundException;
 import com.lendos.common.exception.ValidationException;
 import com.lendos.identity.entity.Tenant;
+import com.lendos.identity.entity.User;
 import com.lendos.identity.repository.TenantRepository;
+import com.lendos.identity.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -32,6 +35,8 @@ public class BorrowerService {
 
     private final BorrowerRepository borrowerRepository;
     private final TenantRepository tenantRepository;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
     private static final Pattern NAME_PATTERN = Pattern.compile("^[A-Za-z ]+$");
     private static final Pattern PHONE_PATTERN = Pattern.compile("^(\\d{10}|\\d{11,15})$");
     private static final int MINIMUM_AGE_YEARS = 18;
@@ -55,8 +60,16 @@ public class BorrowerService {
         String phone = normalizePhone(request.getPhone());
         String address = normalize(request.getAddress());
         LocalDate dateOfBirth = request.getDateOfBirth();
+        boolean createLogin = Boolean.TRUE.equals(request.getCreateLogin());
 
-        validateCreateRequest(tenantId, firstName, lastName, email, phone, dateOfBirth, address);
+        validateCreateRequest(
+                tenantId, firstName, lastName, email, phone, dateOfBirth, address, createLogin, request.getPassword()
+        );
+
+        User borrowerUser = null;
+        if (createLogin) {
+            borrowerUser = createBorrowerUser(tenant, firstName, lastName, email, request.getPassword());
+        }
 
         Borrower borrower = Borrower.builder()
                 .tenant(tenant)
@@ -66,6 +79,7 @@ public class BorrowerService {
                 .phone(phone)
                 .dateOfBirth(dateOfBirth)
                 .address(address)
+                .user(borrowerUser)
                 .status(Borrower.BorrowerStatus.DRAFT)
                 .build();
 
@@ -126,8 +140,61 @@ public class BorrowerService {
             );
         }
 
+        User linkedUser = borrower.getUser();
         borrowerRepository.delete(borrower);
+
+        if (linkedUser != null) {
+            if (linkedUser.getRole() == User.Role.BORROWER) {
+                userRepository.deleteById(linkedUser.getId());
+                log.info("Linked borrower user deleted: userId={}, borrowerId={}, tenantId={}",
+                        linkedUser.getId(), borrowerId, tenantId);
+            } else {
+                log.warn("Skipped linked user deletion for non-borrower role: userId={}, role={}, borrowerId={}",
+                        linkedUser.getId(), linkedUser.getRole(), borrowerId);
+            }
+        }
+
         log.info("Borrower deleted: borrowerId={}, tenantId={}", borrowerId, tenantId);
+    }
+
+    @Transactional
+    public BorrowerDtos.BorrowerResponse createBorrowerLoginAccess(
+            UUID tenantId,
+            UUID borrowerId,
+            BorrowerDtos.CreateBorrowerLoginAccessRequest request
+    ) {
+        Borrower borrower = getBorrowerEntityById(tenantId, borrowerId);
+        if (borrower.getUser() != null) {
+            throw new BusinessException("BORROWER_LOGIN_ALREADY_EXISTS", "Borrower already has login access");
+        }
+
+        String password = request.getPassword();
+        if (!StringUtils.hasText(password) || password.length() < 8) {
+            Map<String, String> errors = new LinkedHashMap<>();
+            errors.put("password", "Password must be at least 8 characters");
+            throw new ValidationException(errors);
+        }
+
+        if (userRepository.existsByTenant_IdAndEmailIgnoreCase(tenantId, borrower.getEmail())) {
+            throw new BusinessException(
+                    "USER_ALREADY_EXISTS",
+                    "A user with this email already exists in this tenant"
+            );
+        }
+
+        User borrowerUser = createBorrowerUser(
+                borrower.getTenant(),
+                borrower.getFirstName(),
+                borrower.getLastName(),
+                borrower.getEmail(),
+                password
+        );
+        borrower.setUser(borrowerUser);
+
+        Borrower updated = borrowerRepository.save(borrower);
+        log.info("Borrower login access created: borrowerId={}, tenantId={}, userId={}",
+                borrowerId, tenantId, borrowerUser.getId());
+        return mapToResponse(updated);
     }
 
     private Borrower getBorrowerEntityById(UUID tenantId, UUID borrowerId) {
@@ -186,7 +253,9 @@ public class BorrowerService {
             String email,
             String phone,
             LocalDate dateOfBirth,
-            String address
+            String address,
+            boolean createLogin,
+            String password
     ) {
         // Server-side validation is the source of truth; frontend validation is convenience only.
         // Rules covered: name format, email/phone uniqueness per tenant, phone format, DOB age limits, and address length.
@@ -229,9 +298,30 @@ public class BorrowerService {
             errors.put("phone", "A borrower with this phone number already exists");
         }
 
+        if (createLogin) {
+            if (!StringUtils.hasText(password) || password.length() < 8) {
+                errors.put("password", "Password must be at least 8 characters when login access is enabled");
+            }
+            if (StringUtils.hasText(email) && userRepository.existsByTenant_IdAndEmailIgnoreCase(tenantId, email)) {
+                errors.put("email", "A user with this email already exists in this tenant");
+            }
+        }
+
         if (!errors.isEmpty()) {
             throw new ValidationException(errors);
         }
+    }
+
+    private User createBorrowerUser(Tenant tenant, String firstName, String lastName, String email, String password) {
+        User user = User.builder()
+                .fullName(firstName + " " + lastName)
+                .email(email)
+                .password(passwordEncoder.encode(password))
+                .role(User.Role.BORROWER)
+                .status(User.UserStatus.ACTIVE)
+                .tenant(tenant)
+                .build();
+        return userRepository.save(user);
     }
 
     private void validateDateOfBirth(LocalDate dateOfBirth, Map<String, String> errors) {
@@ -258,6 +348,7 @@ public class BorrowerService {
                 .status(borrower.getStatus())
                 .dateOfBirth(borrower.getDateOfBirth())
                 .address(borrower.getAddress())
+                .hasLoginAccess(borrower.getUser() != null)
                 .createdAt(borrower.getCreatedAt())
                 .updatedAt(borrower.getUpdatedAt())
                 .build();

@@ -12,8 +12,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -30,15 +32,16 @@ public class UserService {
     public IdentityDtos.UserResponse createUser(UUID tenantId, IdentityDtos.CreateUserRequest request) {
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant", tenantId.toString()));
+        String normalizedEmail = normalizeEmail(request.getEmail());
 
-        if (userRepository.existsByEmailAndTenant(request.getEmail(), tenant)) {
+        if (userRepository.existsByTenant_IdAndEmailIgnoreCase(tenantId, normalizedEmail)) {
             throw new BusinessException("USER_ALREADY_EXISTS",
                     "A user with this email already exists in your organization");
         }
 
         User user = User.builder()
                 .fullName(request.getFullName())
-                .email(request.getEmail())
+                .email(normalizedEmail)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(request.getRole())
                 .status(User.UserStatus.ACTIVE)
@@ -89,5 +92,12 @@ public class UserService {
                 .tenantName(user.getTenant().getName())
                 .createdAt(user.getCreatedAt())
                 .build();
+    }
+
+    private String normalizeEmail(String email) {
+        if (!StringUtils.hasText(email)) {
+            return email;
+        }
+        return email.trim().toLowerCase(Locale.ENGLISH);
     }
 }

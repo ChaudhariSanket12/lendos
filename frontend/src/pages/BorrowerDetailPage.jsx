@@ -45,6 +45,9 @@ export default function BorrowerDetailPage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [error, setError] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
+  const [showCreateLoginForm, setShowCreateLoginForm] = useState(false)
+  const [loginPassword, setLoginPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   const availableActions = useMemo(() => {
     if (!borrower) return []
@@ -97,6 +100,31 @@ export default function BorrowerDetailPage() {
     } catch (err) {
       console.error('[BorrowerDetailPage] Failed to delete borrower', err)
       setError(getErrorMessage(err, 'Failed to delete borrower.'))
+      setActionLoading(false)
+    }
+  }
+
+  const handleCreateLoginAccess = async (e) => {
+    e.preventDefault()
+    setError(null)
+    setSuccessMessage(null)
+
+    if (loginPassword.trim().length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
+
+    setActionLoading(true)
+    try {
+      const updated = await borrowersApi.createLoginAccess(borrowerId, loginPassword.trim())
+      setBorrower(updated)
+      setLoginPassword('')
+      setShowCreateLoginForm(false)
+      setSuccessMessage('Login access created successfully.')
+    } catch (err) {
+      console.error('[BorrowerDetailPage] Failed to create login access', err)
+      setError(getErrorMessage(err, 'Failed to create login access.'))
+    } finally {
       setActionLoading(false)
     }
   }
@@ -167,6 +195,10 @@ export default function BorrowerDetailPage() {
               <p className="text-gray-500">Address</p>
               <p className="text-gray-800 whitespace-pre-wrap">{borrower.address || '-'}</p>
             </div>
+            <div>
+              <p className="text-gray-500">Has Login Access</p>
+              <p className="text-gray-800">{borrower.hasLoginAccess ? 'Yes' : 'No'}</p>
+            </div>
           </div>
         </div>
 
@@ -197,6 +229,45 @@ export default function BorrowerDetailPage() {
 
           {availableActions.length === 0 && (
             <div className="text-sm text-gray-600">No status transition is available right now.</div>
+          )}
+
+          {!borrower.hasLoginAccess && (
+            <div className="mt-5 pt-5 border-t border-gray-200">
+              <button
+                className="btn-secondary"
+                disabled={actionLoading}
+                onClick={() => setShowCreateLoginForm((prev) => !prev)}
+              >
+                Create Login Access
+              </button>
+
+              {showCreateLoginForm && (
+                <form className="mt-4 flex flex-col gap-3 max-w-sm" onSubmit={handleCreateLoginAccess}>
+                  <label className="label">Set Password</label>
+                  <div className="flex gap-2">
+                    <input
+                      className="input"
+                      type={showPassword ? 'text' : 'password'}
+                      minLength={8}
+                      required
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      placeholder="Minimum 8 characters"
+                    />
+                    <button
+                      type="button"
+                      className="btn-secondary whitespace-nowrap"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                    >
+                      {showPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  <button type="submit" className="btn-primary w-fit" disabled={actionLoading}>
+                    {actionLoading ? 'Saving...' : 'Create Access'}
+                  </button>
+                </form>
+              )}
+            </div>
           )}
 
           {borrower.status === 'DRAFT' && (

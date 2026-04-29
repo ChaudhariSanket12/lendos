@@ -19,6 +19,9 @@ public class Tenant extends BaseEntity {
     @Column(nullable = false, unique = true)
     private String slug;
 
+    @Column(name = "firm_code", nullable = false, unique = true, length = 20)
+    private String firmCode;
+
     @Column(nullable = false)
     private String contactEmail;
 

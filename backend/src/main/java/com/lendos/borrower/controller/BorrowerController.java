@@ -70,6 +70,19 @@ public class BorrowerController {
         );
     }
 
+    @PostMapping("/{borrowerId}/login-access")
+    @PreAuthorize("hasAnyRole('ADMIN','CREDIT_OFFICER')")
+    @Operation(summary = "Create login access for an existing borrower")
+    public ResponseEntity<BorrowerDtos.BorrowerResponse> createBorrowerLoginAccess(
+            @AuthenticationPrincipal LendosUserDetails currentUser,
+            @PathVariable UUID borrowerId,
+            @Valid @RequestBody BorrowerDtos.CreateBorrowerLoginAccessRequest request
+    ) {
+        return ResponseEntity.ok(
+                borrowerService.createBorrowerLoginAccess(currentUser.getTenantId(), borrowerId, request)
+        );
+    }
+
     @DeleteMapping("/{borrowerId}")
     @PreAuthorize("hasAnyRole('ADMIN','CREDIT_OFFICER')")
     @Operation(summary = "Delete borrower (allowed only when status is DRAFT)")

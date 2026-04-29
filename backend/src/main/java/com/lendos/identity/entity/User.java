@@ -41,7 +41,8 @@ public class User extends BaseEntity {
     public enum Role {
         ADMIN,
         CREDIT_OFFICER,
-        AUDITOR
+        AUDITOR,
+        BORROWER
     }
 
     public enum UserStatus {

@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+
+const ADMIN_ROLES = ['ADMIN', 'CREDIT_OFFICER', 'AUDITOR']
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -14,8 +16,15 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
     try {
-      await login(form.email, form.password)
-      navigate('/dashboard')
+      const data = await login(form.email, form.password)
+      const role = data?.user?.role
+      if (role === 'BORROWER') {
+        navigate('/borrower/dashboard')
+      } else if (ADMIN_ROLES.includes(role)) {
+        navigate('/dashboard')
+      } else {
+        setError('Unsupported account role.')
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Check your credentials.')
     } finally {
@@ -67,8 +76,12 @@ export default function LoginPage() {
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-500">
-          New organization?{' '}
-          <a href="/register" className="text-blue-600 hover:underline">Register here</a>
+          Don&apos;t have an account?{' '}
+          <Link to="/register" className="text-blue-600 hover:underline">Register here</Link>
+        </p>
+        <p className="mt-2 text-center text-xs text-gray-500">
+          Creating a new workspace?{' '}
+          <Link to="/register-tenant" className="text-blue-600 hover:underline">Register organization</Link>
         </p>
       </div>
     </div>

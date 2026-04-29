@@ -47,6 +47,21 @@ export const borrowersApi = {
     }
   },
 
+  createLoginAccess: async (borrowerId, password) => {
+    const path = `/api/v1/borrowers/${borrowerId}/login-access`
+    const url = buildUrl(path)
+    console.log('[borrowersApi] createLoginAccess request', { url, payload: { password: '***' } })
+
+    try {
+      const response = await apiClient.post(path, { password })
+      logSuccess('createLoginAccess', url, response.data)
+      return response.data
+    } catch (error) {
+      logError('createLoginAccess', url, error)
+      throw error
+    }
+  },
+
   getById: async (borrowerId) => {
     const path = `/api/v1/borrowers/${borrowerId}`
     const url = buildUrl(path)

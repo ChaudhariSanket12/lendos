@@ -118,8 +118,17 @@ public class IdentityDtos {
         private UUID id;
         private String name;
         private String slug;
+        private String firmCode;
         private String contactEmail;
         private String status;
         private LocalDateTime createdAt;
+    }
+
+    @Getter
+    @Builder
+    public static class FirmCodeResponse {
+        private UUID tenantId;
+        private String tenantName;
+        private String firmCode;
     }
 }
