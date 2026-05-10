@@ -10,7 +10,7 @@ const navItems = [
 ]
 
 function isActivePath(currentPath, itemPath) {
-  return currentPath === itemPath
+  return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`)
 }
 
 export default function BorrowerLayout({ title, subtitle, children }) {

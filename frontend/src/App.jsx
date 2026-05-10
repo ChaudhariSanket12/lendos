@@ -11,7 +11,10 @@ import BorrowerDashboardPage from './pages/BorrowerDashboardPage'
 import BorrowerCompleteProfilePage from './pages/BorrowerCompleteProfilePage'
 import BorrowerMyProfilePage from './pages/BorrowerMyProfilePage'
 import BorrowerMyLoansPage from './pages/BorrowerMyLoansPage'
+import BorrowerLoanDetailPage from './pages/BorrowerLoanDetailPage'
 import BorrowerApplyForLoanPage from './pages/BorrowerApplyForLoanPage'
+import LoansPage from './pages/LoansPage'
+import LoanDetailPage from './pages/LoanDetailPage'
 
 const ADMIN_ROLES = ['ADMIN', 'CREDIT_OFFICER', 'AUDITOR']
 
@@ -111,6 +114,24 @@ function AppRoutes() {
       />
 
       <Route
+        path="/loans"
+        element={
+          <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+            <LoansPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/loans/:loanId"
+        element={
+          <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+            <LoanDetailPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/borrower/dashboard"
         element={
           <ProtectedRoute allowedRoles={['BORROWER']}>
@@ -142,6 +163,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['BORROWER']}>
             <BorrowerMyLoansPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/borrower/my-loans/:loanId"
+        element={
+          <ProtectedRoute allowedRoles={['BORROWER']}>
+            <BorrowerLoanDetailPage />
           </ProtectedRoute>
         }
       />

@@ -10,7 +10,11 @@ public class ValidationException extends BusinessException {
     private final Map<String, String> errors;
 
     public ValidationException(Map<String, String> errors) {
-        super("VALIDATION_FAILED", "Validation failed", HttpStatus.BAD_REQUEST);
+        this("Validation failed", errors);
+    }
+
+    public ValidationException(String message, Map<String, String> errors) {
+        super("VALIDATION_FAILED", message, HttpStatus.BAD_REQUEST);
         this.errors = Collections.unmodifiableMap(errors);
     }
 

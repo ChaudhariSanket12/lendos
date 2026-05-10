@@ -75,7 +75,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
             { title: 'Borrowers', desc: 'Manage borrower profiles', route: '/borrowers' },
-            { title: 'Loans', desc: 'Loan lifecycle management', color: 'green' },
+            { title: 'Loans', desc: 'Loan lifecycle management', route: '/loans' },
             { title: 'Payments', desc: 'EMI schedule & payments', color: 'purple' },
             { title: 'Ledger', desc: 'Double-entry accounting', color: 'orange' },
             { title: 'Risk Engine', desc: 'Credit risk assessment', color: 'red' },

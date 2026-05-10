@@ -7,6 +7,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * MODULE 3 — Loan Lifecycle
@@ -31,7 +32,10 @@ public class Loan extends BaseEntity {
     @JoinColumn(name = "borrower_id", nullable = false)
     private Borrower borrower;
 
-    @Column(nullable = false, precision = 15, scale = 2)
+    @Column(name = "loan_amount", nullable = false, precision = 15, scale = 2)
+    private BigDecimal loanAmount;
+
+    @Column(name = "principal_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal principalAmount;
 
     @Column(nullable = false, precision = 5, scale = 2)
@@ -44,10 +48,32 @@ public class Loan extends BaseEntity {
     @Column(nullable = false)
     private LoanStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private LoanPurpose loanPurpose;
+
+    @Column(nullable = false)
+    private LocalDateTime appliedAt;
+
     private LocalDate disbursementDate;
+
+    @Column(columnDefinition = "TEXT")
+    private String statusNotes;
 
     public enum LoanStatus {
         APPLIED, UNDER_ASSESSMENT, APPROVED, REJECTED,
         DISBURSED, ACTIVE, CLOSED, DEFAULTED
+    }
+
+    public enum LoanPurpose {
+        DEBT_CONSOLIDATION,
+        HOME_RENOVATION,
+        MEDICAL,
+        EDUCATION,
+        BUSINESS,
+        WEDDING,
+        TRAVEL,
+        VEHICLE,
+        OTHER
     }
 }

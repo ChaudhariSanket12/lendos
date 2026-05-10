@@ -29,6 +29,11 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString()
 }
 
+function formatAmount(value) {
+  if (value === null || value === undefined || value === '') return '-'
+  return Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 function getErrorMessage(err, fallback) {
   const backendMessage = err.response?.data?.message
   const status = err.response?.status
@@ -194,6 +199,30 @@ export default function BorrowerDetailPage() {
             <div className="md:col-span-2">
               <p className="text-gray-500">Address</p>
               <p className="text-gray-800 whitespace-pre-wrap">{borrower.address || '-'}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">PAN Number</p>
+              <p className="text-gray-800">{borrower.panNumber || '-'}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Aadhaar Number</p>
+              <p className="text-gray-800">{borrower.aadhaarNumber || '-'}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Monthly Income</p>
+              <p className="text-gray-800">{formatAmount(borrower.monthlyIncome)}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Employment Type</p>
+              <p className="text-gray-800">{borrower.employmentType || '-'}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Years in Current Job</p>
+              <p className="text-gray-800">{borrower.yearsInCurrentJob ?? '-'}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Existing Monthly Obligations</p>
+              <p className="text-gray-800">{formatAmount(borrower.existingMonthlyObligations)}</p>
             </div>
             <div>
               <p className="text-gray-500">Has Login Access</p>

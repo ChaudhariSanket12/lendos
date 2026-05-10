@@ -32,6 +32,10 @@ public class RiskAssessment extends BaseEntity {
     @Column(nullable = false, precision = 5, scale = 2)
     private BigDecimal riskScore;
 
+    /** Fixed Obligation to Income Ratio in percentage. */
+    @Column(precision = 5, scale = 2)
+    private BigDecimal foir;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private RiskDecision decision;

@@ -37,8 +37,11 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class BorrowerPortalService {
 
-    private static final Pattern PHONE_PATTERN = Pattern.compile("^(\\d{10}|\\d{11,15})$");
+    private static final Pattern PHONE_PATTERN = Pattern.compile("^(\\d{10}|\\d{11,13})$");
+    private static final Pattern PAN_PATTERN = Pattern.compile("^[A-Z]{5}[0-9]{4}[A-Z]$");
+    private static final Pattern AADHAAR_PATTERN = Pattern.compile("^\\d{12}$");
     private static final int MINIMUM_AGE_YEARS = 18;
+    private static final int MIN_ADDRESS_LENGTH = 10;
 
     private final BorrowerRepository borrowerRepository;
     private final UserRepository userRepository;
@@ -132,18 +135,19 @@ public class BorrowerPortalService {
     public BorrowerDtos.BorrowerProfileResponse completeMyBorrowerProfile(
             UUID tenantId,
             UUID userId,
-            BorrowerDtos.CompleteBorrowerProfileRequest request
+            BorrowerDtos.CompleteProfileRequest request
     ) {
         Borrower borrower = getBorrowerByUser(tenantId, userId);
         String normalizedPhone = normalizePhone(request.getPhone());
         String normalizedAddress = normalize(request.getAddress());
         String normalizedPan = normalizePan(request.getPanNumber());
+        String normalizedAadhaar = normalizeAadhaar(request.getAadhaarNumber());
 
         Map<String, String> errors = new LinkedHashMap<>();
         if (!StringUtils.hasText(normalizedPhone)) {
             errors.put("phone", "Phone is required");
         } else if (!PHONE_PATTERN.matcher(normalizedPhone).matches()) {
-            errors.put("phone", "Invalid phone number format");
+            errors.put("phone", "Please enter a valid phone number");
         }
 
         if (request.getDateOfBirth() == null) {
@@ -154,24 +158,29 @@ public class BorrowerPortalService {
 
         if (!StringUtils.hasText(normalizedAddress)) {
             errors.put("address", "Address is required");
+        } else if (normalizedAddress.length() < MIN_ADDRESS_LENGTH) {
+            errors.put("address", "Address must be at least 10 characters");
         }
 
-        if (StringUtils.hasText(request.getPanNumber()) && !StringUtils.hasText(normalizedPan)) {
-            errors.put("panNumber", "PAN number must be exactly 10 characters");
+        if (!StringUtils.hasText(normalizedPan)) {
+            errors.put("panNumber", "PAN number is required");
+        } else if (!PAN_PATTERN.matcher(normalizedPan).matches()) {
+            errors.put("panNumber", "Invalid PAN format. Expected format: ABCDE1234F");
+        }
+
+        if (StringUtils.hasText(normalizedAadhaar) && !AADHAAR_PATTERN.matcher(normalizedAadhaar).matches()) {
+            errors.put("aadhaarNumber", "Aadhaar must be 12 digits");
         }
 
         if (!errors.isEmpty()) {
-            throw new ValidationException(errors);
+            throw new ValidationException("Profile validation failed", errors);
         }
 
         borrower.setPhone(normalizedPhone);
         borrower.setDateOfBirth(request.getDateOfBirth());
         borrower.setAddress(normalizedAddress);
-        borrower.setMonthlyIncome(request.getMonthlyIncome());
-        borrower.setEmploymentType(request.getEmploymentType());
-        borrower.setYearsInCurrentJob(request.getYearsInCurrentJob());
-        borrower.setExistingMonthlyObligations(request.getExistingMonthlyObligations());
         borrower.setPanNumber(normalizedPan);
+        borrower.setAadhaarNumber(normalizedAadhaar);
         if (borrower.getStatus() == Borrower.BorrowerStatus.DRAFT) {
             borrower.setStatus(Borrower.BorrowerStatus.UNDER_REVIEW);
         }
@@ -236,7 +245,7 @@ public class BorrowerPortalService {
 
         int years = Period.between(dateOfBirth, today).getYears();
         if (years < MINIMUM_AGE_YEARS) {
-            errors.put("dateOfBirth", "Borrower must be at least 18 years old");
+            errors.put("dateOfBirth", "You must be at least 18 years old");
         }
     }
 
@@ -274,11 +283,15 @@ public class BorrowerPortalService {
         if (!StringUtils.hasText(normalized)) {
             return null;
         }
-        String pan = normalized.toUpperCase(Locale.ENGLISH);
-        if (pan.length() != 10) {
+        return normalized.toUpperCase(Locale.ENGLISH);
+    }
+
+    private String normalizeAadhaar(String aadhaarNumber) {
+        String normalized = normalize(aadhaarNumber);
+        if (!StringUtils.hasText(normalized)) {
             return null;
         }
-        return pan;
+        return normalized.replaceAll("\\s+", "");
     }
 
     private IdentityDtos.UserResponse mapToUserResponse(User user) {
@@ -319,8 +332,13 @@ public class BorrowerPortalService {
                 .monthlyIncome(borrower.getMonthlyIncome())
                 .employmentType(borrower.getEmploymentType())
                 .yearsInCurrentJob(borrower.getYearsInCurrentJob())
+                .totalWorkExperience(borrower.getTotalWorkExperience())
                 .existingMonthlyObligations(borrower.getExistingMonthlyObligations())
+                .residenceType(borrower.getResidenceType())
+                .yearsAtCurrentResidence(borrower.getYearsAtCurrentResidence())
+                .cibilScore(borrower.getCibilScore())
                 .panNumber(borrower.getPanNumber())
+                .aadhaarNumber(borrower.getAadhaarNumber())
                 .creditScore(borrower.getCreditScore())
                 .createdAt(borrower.getCreatedAt())
                 .updatedAt(borrower.getUpdatedAt())

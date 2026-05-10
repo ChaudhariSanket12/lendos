@@ -51,11 +51,25 @@ public class Borrower extends BaseEntity {
     @Column(precision = 4, scale = 1)
     private BigDecimal yearsInCurrentJob;
 
+    @Column(precision = 4, scale = 1)
+    private BigDecimal totalWorkExperience;
+
     @Column(precision = 15, scale = 2)
     private BigDecimal existingMonthlyObligations;
 
+    @Enumerated(EnumType.STRING)
+    private ResidenceType residenceType;
+
+    @Column(precision = 4, scale = 1)
+    private BigDecimal yearsAtCurrentResidence;
+
     @Column(length = 10)
     private String panNumber;
+
+    @Column(length = 12)
+    private String aadhaarNumber;
+
+    private Integer cibilScore;
 
     private Integer creditScore;
 
@@ -72,6 +86,10 @@ public class Borrower extends BaseEntity {
     }
 
     public enum EmploymentType {
-        SALARIED, SELF_EMPLOYED, GOVERNMENT, BUSINESS
+        SALARIED, GOVERNMENT, SELF_EMPLOYED, PROFESSIONAL, RETIRED, OTHER, BUSINESS
+    }
+
+    public enum ResidenceType {
+        OWNED, RENTED, WITH_FAMILY, COMPANY_PROVIDED
     }
 }

@@ -71,6 +71,16 @@ public class BorrowerDtos {
         private Borrower.BorrowerStatus status;
         private LocalDate dateOfBirth;
         private String address;
+        private BigDecimal monthlyIncome;
+        private Borrower.EmploymentType employmentType;
+        private BigDecimal yearsInCurrentJob;
+        private BigDecimal totalWorkExperience;
+        private BigDecimal existingMonthlyObligations;
+        private Borrower.ResidenceType residenceType;
+        private BigDecimal yearsAtCurrentResidence;
+        private Integer cibilScore;
+        private String panNumber;
+        private String aadhaarNumber;
         private boolean hasLoginAccess;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
@@ -110,8 +120,13 @@ public class BorrowerDtos {
         private BigDecimal monthlyIncome;
         private Borrower.EmploymentType employmentType;
         private BigDecimal yearsInCurrentJob;
+        private BigDecimal totalWorkExperience;
         private BigDecimal existingMonthlyObligations;
+        private Borrower.ResidenceType residenceType;
+        private BigDecimal yearsAtCurrentResidence;
+        private Integer cibilScore;
         private String panNumber;
+        private String aadhaarNumber;
         private Integer creditScore;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
@@ -141,32 +156,11 @@ public class BorrowerDtos {
 
     @Getter
     @Setter
-    public static class CompleteBorrowerProfileRequest {
-        @NotNull(message = "Monthly income is required")
-        @DecimalMin(value = "0.01", message = "Monthly income must be greater than 0")
-        private BigDecimal monthlyIncome;
-
-        @NotNull(message = "Employment type is required")
-        private Borrower.EmploymentType employmentType;
-
-        @NotNull(message = "Years in current job is required")
-        @DecimalMin(value = "0.0", message = "Years in current job cannot be negative")
-        private BigDecimal yearsInCurrentJob;
-
-        @NotNull(message = "Existing monthly obligations are required")
-        @DecimalMin(value = "0.0", message = "Existing monthly obligations cannot be negative")
-        private BigDecimal existingMonthlyObligations;
-
-        @Size(min = 10, max = 10, message = "PAN number must be exactly 10 characters")
-        private String panNumber;
-
-        @NotBlank(message = "Phone is required")
+    public static class CompleteProfileRequest {
         private String phone;
-
-        @NotNull(message = "Date of birth is required")
         private LocalDate dateOfBirth;
-
-        @NotBlank(message = "Address is required")
         private String address;
+        private String panNumber;
+        private String aadhaarNumber;
     }
 }

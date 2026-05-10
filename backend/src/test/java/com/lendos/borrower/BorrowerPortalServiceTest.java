@@ -5,6 +5,7 @@ import com.lendos.borrower.entity.Borrower;
 import com.lendos.borrower.repository.BorrowerRepository;
 import com.lendos.borrower.service.BorrowerPortalService;
 import com.lendos.common.exception.BusinessException;
+import com.lendos.common.exception.ValidationException;
 import com.lendos.identity.dto.BorrowerAuthDtos;
 import com.lendos.identity.entity.RefreshToken;
 import com.lendos.identity.entity.Tenant;
@@ -22,13 +23,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -124,15 +125,12 @@ class BorrowerPortalServiceTest {
         when(borrowerRepository.findByTenant_IdAndUser_Id(tenantId, userId)).thenReturn(Optional.of(borrower));
         when(borrowerRepository.save(any(Borrower.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        BorrowerDtos.CompleteBorrowerProfileRequest request = new BorrowerDtos.CompleteBorrowerProfileRequest();
+        BorrowerDtos.CompleteProfileRequest request = new BorrowerDtos.CompleteProfileRequest();
         request.setPhone("+91-9876543210");
         request.setDateOfBirth(LocalDate.now().minusYears(25));
         request.setAddress("42 Residency Road, Bengaluru");
-        request.setMonthlyIncome(new BigDecimal("85000.00"));
-        request.setEmploymentType(Borrower.EmploymentType.SALARIED);
-        request.setYearsInCurrentJob(new BigDecimal("4.5"));
-        request.setExistingMonthlyObligations(new BigDecimal("12500.00"));
         request.setPanNumber("ABCDE1234F");
+        request.setAadhaarNumber("1234 5678 9123");
 
         BorrowerDtos.BorrowerProfileResponse response = borrowerPortalService.completeMyBorrowerProfile(
                 tenantId, userId, request
@@ -140,6 +138,35 @@ class BorrowerPortalServiceTest {
 
         assertThat(response.getStatus()).isEqualTo(Borrower.BorrowerStatus.UNDER_REVIEW);
         assertThat(response.getPhone()).isEqualTo("919876543210");
-        assertThat(response.getEmploymentType()).isEqualTo(Borrower.EmploymentType.SALARIED);
+        assertThat(response.getAadhaarNumber()).isEqualTo("123456789123");
+    }
+
+    @Test
+    @DisplayName("Complete profile rejects invalid PAN format")
+    void completeBorrowerProfile_invalidPan_throwsValidationException() {
+        UUID tenantId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        Borrower borrower = Borrower.builder()
+                .firstName("Aarav")
+                .lastName("Mehta")
+                .email("aarav@example.com")
+                .status(Borrower.BorrowerStatus.DRAFT)
+                .build();
+        when(borrowerRepository.findByTenant_IdAndUser_Id(tenantId, userId)).thenReturn(Optional.of(borrower));
+
+        BorrowerDtos.CompleteProfileRequest request = new BorrowerDtos.CompleteProfileRequest();
+        request.setPhone("9876543210");
+        request.setDateOfBirth(LocalDate.now().minusYears(25));
+        request.setAddress("42 Residency Road, Bengaluru");
+        request.setPanNumber("12345");
+
+        assertThatExceptionOfType(ValidationException.class)
+                .isThrownBy(() -> borrowerPortalService.completeMyBorrowerProfile(tenantId, userId, request))
+                .satisfies(ex -> {
+                    assertThat(ex.getMessage()).isEqualTo("Profile validation failed");
+                    assertThat(ex.getErrors().get("panNumber"))
+                            .isEqualTo("Invalid PAN format. Expected format: ABCDE1234F");
+                });
     }
 }
