@@ -79,6 +79,10 @@ export default function BorrowerDashboardPage() {
     () => loans.filter((loan) => loan.status === 'ACTIVE').length,
     [loans]
   )
+  const hasRejectedOrDeletedLoan = useMemo(
+    () => loans.some((loan) => loan.status === 'REJECTED' || loan.isDeleted),
+    [loans]
+  )
 
   const cards = [
     { key: 'profile', title: 'My Profile', desc: 'View your profile details', route: '/borrower/my-profile' },
@@ -145,6 +149,10 @@ export default function BorrowerDashboardPage() {
         <div className="alert-success mb-6">✅ Profile Verified — Under Review</div>
       )}
 
+      {!loading && !error && hasRejectedOrDeletedLoan && canApplyForLoan && (
+        <div className="alert-info mb-6">Your last application was not approved. You can apply again.</div>
+      )}
+
       {!loading && !error && isProfileComplete && (
         <div className="card mb-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-2">Quick Actions</h3>
@@ -169,7 +177,7 @@ export default function BorrowerDashboardPage() {
                 </button>
                 {canApplyForLoan && (
                   <button className="btn-primary" onClick={() => navigate('/borrower/apply-for-loan')}>
-                    Apply for Another Loan →
+                    {hasRejectedOrDeletedLoan ? 'Apply for Loan →' : 'Apply for Another Loan →'}
                   </button>
                 )}
               </>

@@ -7,6 +7,7 @@ const statusStyles = {
   UNDER_ASSESSMENT: 'bg-yellow-100 text-yellow-800',
   APPROVED: 'bg-green-100 text-green-700',
   REJECTED: 'bg-red-100 text-red-700',
+  DELETED: 'bg-gray-100 text-gray-700',
   DISBURSED: 'bg-purple-100 text-purple-700',
   ACTIVE: 'bg-green-100 text-green-700',
   CLOSED: 'bg-gray-100 text-gray-700',
@@ -34,6 +35,17 @@ function formatDate(value) {
   return new Date(value).toLocaleString()
 }
 
+function formatDocumentType(type) {
+  if (!type) return 'Document'
+  return type === 'PAN' ? 'PAN Card' : type === 'AADHAAR' ? 'Aadhaar Card' : formatStatus(type)
+}
+
+function statusBadgeClass(status) {
+  if (status === 'VERIFIED') return 'bg-green-100 text-green-700'
+  if (status === 'REJECTED') return 'bg-red-100 text-red-700'
+  return 'bg-yellow-100 text-yellow-800'
+}
+
 export default function LoanDetailPage() {
   const { loanId } = useParams()
   const navigate = useNavigate()
@@ -42,6 +54,10 @@ export default function LoanDetailPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [rejectionReason, setRejectionReason] = useState('')
+  const [finalMessage, setFinalMessage] = useState('')
 
   const loadLoan = async () => {
     setLoading(true)
@@ -62,6 +78,8 @@ export default function LoanDetailPage() {
     loadLoan()
   }, [loanId])
 
+  const displayStatus = loan?.isDeleted ? 'DELETED' : loan?.status
+
   const handleStatusUpdate = async (status, notes) => {
     setSaving(true)
     setError(null)
@@ -78,8 +96,53 @@ export default function LoanDetailPage() {
     }
   }
 
+  const handleReject = async () => {
+    const reason = rejectionReason.trim()
+    if (!reason) {
+      setError('Rejection reason is required.')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      const response = await loansApi.reject(loanId, reason)
+      setShowRejectModal(false)
+      setRejectionReason('')
+      setSuccessMessage(response?.message || 'Application rejected. Documents deleted.')
+      await loadLoan()
+    } catch (err) {
+      console.error('[LoanDetailPage] Failed to reject application', err)
+      setError(getErrorMessage(err, 'Failed to reject application.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteApplication = async () => {
+    setSaving(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      const response = await loansApi.deleteApplication(loanId, finalMessage.trim())
+      setShowDeleteModal(false)
+      setFinalMessage('')
+      navigate('/loans', { state: { message: response?.message || 'Application deleted.' } })
+    } catch (err) {
+      console.error('[LoanDetailPage] Failed to delete application', err)
+      setError(getErrorMessage(err, 'Failed to delete application.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const renderActions = () => {
     if (!loan) return null
+
+    if (loan.isDeleted) {
+      return <p className="text-sm text-gray-600">This application is deleted from active records.</p>
+    }
 
     if (loan.status === 'APPLIED') {
       return (
@@ -87,8 +150,8 @@ export default function LoanDetailPage() {
           <button className="btn-primary" disabled={saving} onClick={() => handleStatusUpdate('UNDER_ASSESSMENT', 'Starting credit assessment')}>
             Start Assessment
           </button>
-          <button className="btn-danger" disabled={saving} onClick={() => handleStatusUpdate('REJECTED', 'Rejected at initial review')}>
-            Reject
+          <button className="btn-danger" disabled={saving} onClick={() => setShowRejectModal(true)}>
+            Reject Application
           </button>
         </div>
       )
@@ -100,8 +163,8 @@ export default function LoanDetailPage() {
           <button className="btn-primary" disabled={saving} onClick={() => handleStatusUpdate('APPROVED', 'All checks passed')}>
             Approve
           </button>
-          <button className="btn-danger" disabled={saving} onClick={() => handleStatusUpdate('REJECTED', 'Rejected after assessment')}>
-            Reject
+          <button className="btn-danger" disabled={saving} onClick={() => setShowRejectModal(true)}>
+            Reject Application
           </button>
         </div>
       )
@@ -111,6 +174,14 @@ export default function LoanDetailPage() {
       return (
         <button className="btn-primary" disabled={saving} onClick={() => handleStatusUpdate('DISBURSED', 'Disbursement confirmed')}>
           Confirm Disbursement
+        </button>
+      )
+    }
+
+    if (loan.status === 'REJECTED') {
+      return (
+        <button className="btn-danger" disabled={saving} onClick={() => setShowDeleteModal(true)}>
+          Delete Application
         </button>
       )
     }
@@ -137,8 +208,8 @@ export default function LoanDetailPage() {
             <div className="card">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <h2 className="text-xl font-semibold text-gray-800">Loan Details</h2>
-                <span className={`inline-flex px-3 py-1 rounded text-xs font-medium ${statusStyles[loan.status] || 'bg-gray-100 text-gray-700'}`}>
-                  {formatStatus(loan.status)}
+                <span className={`inline-flex px-3 py-1 rounded text-xs font-medium ${statusStyles[displayStatus] || 'bg-gray-100 text-gray-700'}`}>
+                  {formatStatus(displayStatus)}
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -169,6 +240,25 @@ export default function LoanDetailPage() {
               </div>
             </div>
 
+            {loan.status === 'REJECTED' && (
+              <div className="card bg-red-50 border-red-200">
+                <h3 className="text-lg font-semibold text-red-800 mb-3">
+                  {loan.isDeleted ? 'Application Deleted' : 'Application Rejected'}
+                </h3>
+                <div className="text-sm text-red-900 space-y-1">
+                  <p><span className="font-medium">Reason:</span> {loan.rejectionMessage || '-'}</p>
+                  <p><span className="font-medium">Rejected At:</span> {formatDate(loan.rejectedAt)}</p>
+                  <p><span className="font-medium">Rejected By:</span> {loan.rejectedByName || '-'}</p>
+                  {loan.isDeleted && (
+                    <>
+                      <p><span className="font-medium">Deleted At:</span> {formatDate(loan.deletedAt)}</p>
+                      <p><span className="font-medium">Deleted By:</span> {loan.deletedBy || '-'}</p>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="card">
               <h3 className="text-lg font-semibold text-gray-800 mb-3">Borrower Profile Summary</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -196,6 +286,54 @@ export default function LoanDetailPage() {
                   <p className="text-gray-500">Aadhaar</p>
                   <p className="text-gray-800">{loan.borrower?.aadhaarNumber || '-'}</p>
                 </div>
+              </div>
+            </div>
+
+            <div className="card">
+              <h3 className="text-lg font-semibold text-gray-800 mb-3">Documents</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {['PAN', 'AADHAAR'].map((type) => {
+                  const doc = loan.borrower?.documents?.find((item) => item.documentType === type)
+                  return (
+                    <div key={type} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <p className="text-sm font-medium text-gray-800">{formatDocumentType(type)}</p>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${statusBadgeClass(doc?.verificationStatus)}`}>
+                          {formatStatus(doc?.verificationStatus || 'PENDING')}
+                        </span>
+                      </div>
+                      {doc?.documentUrl ? (
+                        <div className="space-y-3">
+                          <a
+                            href={doc.documentUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-700 hover:underline"
+                          >
+                            Open document ↗
+                          </a>
+                          <a
+                            href={doc.documentUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block"
+                          >
+                            <img
+                              src={doc.documentUrl}
+                              alt={`${formatDocumentType(type)} thumbnail`}
+                              className="w-28 h-20 object-cover rounded border border-gray-200"
+                            />
+                          </a>
+                          <p className="text-xs text-gray-500">
+                            Uploaded at: {formatDate(doc.uploadedAt)}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-600">No document uploaded.</p>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
@@ -272,6 +410,64 @@ export default function LoanDetailPage() {
           </>
         )}
       </div>
+
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg border border-gray-200 shadow-xl max-w-lg w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">❌ Reject Loan Application</h3>
+            <div className="text-sm text-gray-700 space-y-1 mb-4">
+              <p>This will:</p>
+              <p>• Reject the loan application</p>
+              <p>• Delete all uploaded documents</p>
+              <p>• Remove document files from storage</p>
+              <p className="font-medium text-red-700 mt-2">This action cannot be undone.</p>
+            </div>
+            <label className="label">Rejection Reason</label>
+            <textarea
+              className="input min-h-[100px]"
+              value={rejectionReason}
+              onChange={(event) => setRejectionReason(event.target.value)}
+              placeholder="Income documentation insufficient. Please provide bank statements."
+              disabled={saving}
+            />
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button className="btn-secondary" disabled={saving} onClick={() => setShowRejectModal(false)}>
+                Cancel
+              </button>
+              <button className="btn-danger" disabled={saving} onClick={handleReject}>
+                {saving ? 'Rejecting...' : 'Confirm Rejection'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg border border-gray-200 shadow-xl max-w-lg w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">🗑️ Delete Loan Application</h3>
+            <p className="text-sm text-gray-700 mb-4">
+              This removes the application from active records. The borrower will still see the final message.
+            </p>
+            <label className="label">Final Message to Borrower</label>
+            <textarea
+              className="input min-h-[100px]"
+              value={finalMessage}
+              onChange={(event) => setFinalMessage(event.target.value)}
+              placeholder="Application closed due to incomplete verification."
+              disabled={saving}
+            />
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button className="btn-secondary" disabled={saving} onClick={() => setShowDeleteModal(false)}>
+                Cancel
+              </button>
+              <button className="btn-danger" disabled={saving} onClick={handleDeleteApplication}>
+                {saving ? 'Deleting...' : 'Delete Application'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

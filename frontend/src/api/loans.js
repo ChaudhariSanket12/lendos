@@ -101,4 +101,34 @@ export const loansApi = {
       throw error
     }
   },
+
+  reject: async (loanId, reason) => {
+    const path = `/api/v1/loans/${loanId}/reject`
+    const url = buildUrl(path)
+    const payload = { reason }
+    console.log('[loansApi] reject request', { url, payload })
+    try {
+      const response = await apiClient.post(path, payload)
+      logSuccess('reject', url, response.data)
+      return response.data
+    } catch (error) {
+      logError('reject', url, error)
+      throw error
+    }
+  },
+
+  deleteApplication: async (loanId, finalMessage) => {
+    const path = `/api/v1/loans/${loanId}`
+    const url = buildUrl(path)
+    const payload = finalMessage ? { finalMessage } : {}
+    console.log('[loansApi] deleteApplication request', { url, payload })
+    try {
+      const response = await apiClient.delete(path, { data: payload })
+      logSuccess('deleteApplication', url, response.data)
+      return response.data
+    } catch (error) {
+      logError('deleteApplication', url, error)
+      throw error
+    }
+  },
 }

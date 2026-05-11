@@ -9,6 +9,8 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class LoanDtos {
@@ -18,12 +20,19 @@ public class LoanDtos {
     public static class ApplyLoanApplicationRequest {
         private BigDecimal monthlyIncome;
         private Borrower.EmploymentType employmentType;
+        private String employerName;
+        private String industryType;
+        private String salaryPaymentMode;
         private BigDecimal yearsInCurrentJob;
         private BigDecimal totalWorkExperience;
-        private BigDecimal existingMonthlyObligations;
+        private BigDecimal rentExpense;
+        private BigDecimal existingLoanEmis;
+        private BigDecimal creditCardPayments;
+        private BigDecimal otherFixedExpenses;
         private BigDecimal loanAmount;
         private Integer tenureMonths;
         private Loan.LoanPurpose loanPurpose;
+        private Map<String, String> documentUrls;
         private Borrower.ResidenceType residenceType;
         private BigDecimal yearsAtCurrentResidence;
         private Integer cibilScore;
@@ -34,6 +43,30 @@ public class LoanDtos {
     public static class UpdateLoanStatusRequest {
         private String status;
         private String notes;
+    }
+
+    @Getter
+    @Setter
+    public static class RejectLoanRequest {
+        private String reason;
+    }
+
+    @Getter
+    @Setter
+    public static class DeleteLoanRequest {
+        private String finalMessage;
+    }
+
+    @Getter
+    @Builder
+    public static class LoanActionResponse {
+        private UUID loanId;
+        private String status;
+        private String rejectionMessage;
+        private LocalDateTime rejectedAt;
+        private String rejectedBy;
+        private LocalDateTime deletedAt;
+        private String message;
     }
 
     @Getter
@@ -80,6 +113,12 @@ public class LoanDtos {
         private LocalDateTime appliedAt;
         private LocalDate disbursementDate;
         private String statusNotes;
+        private String rejectionMessage;
+        private LocalDateTime rejectedAt;
+        private String rejectedByName;
+        private LocalDateTime deletedAt;
+        private String deletedBy;
+        private Boolean isDeleted;
         private BorrowerSnapshot borrower;
         private RiskSnapshot risk;
         private LocalDateTime createdAt;
@@ -98,12 +137,30 @@ public class LoanDtos {
         private String aadhaarNumber;
         private BigDecimal monthlyIncome;
         private Borrower.EmploymentType employmentType;
+        private String employerName;
+        private String industryType;
+        private String salaryPaymentMode;
         private BigDecimal yearsInCurrentJob;
         private BigDecimal totalWorkExperience;
+        private BigDecimal rentExpense;
+        private BigDecimal existingLoanEmis;
+        private BigDecimal creditCardPayments;
+        private BigDecimal otherFixedExpenses;
         private BigDecimal existingMonthlyObligations;
         private Borrower.ResidenceType residenceType;
         private BigDecimal yearsAtCurrentResidence;
         private Integer cibilScore;
+        private List<DocumentSnapshot> documents;
+    }
+
+    @Getter
+    @Builder
+    public static class DocumentSnapshot {
+        private UUID id;
+        private String documentType;
+        private String documentUrl;
+        private String verificationStatus;
+        private LocalDateTime uploadedAt;
     }
 
     @Getter

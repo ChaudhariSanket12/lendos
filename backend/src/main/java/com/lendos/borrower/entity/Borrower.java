@@ -48,11 +48,29 @@ public class Borrower extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private EmploymentType employmentType;
 
+    private String employerName;
+
+    private String industryType;
+
+    private String salaryPaymentMode;
+
     @Column(precision = 4, scale = 1)
     private BigDecimal yearsInCurrentJob;
 
     @Column(precision = 4, scale = 1)
     private BigDecimal totalWorkExperience;
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal rentExpense;
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal existingLoanEmis;
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal creditCardPayments;
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal otherFixedExpenses;
 
     @Column(precision = 15, scale = 2)
     private BigDecimal existingMonthlyObligations;

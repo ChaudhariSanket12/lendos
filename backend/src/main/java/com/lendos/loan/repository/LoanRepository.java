@@ -11,11 +11,17 @@ import java.util.UUID;
 @Repository
 public interface LoanRepository extends JpaRepository<Loan, UUID> {
 
-    List<Loan> findAllByTenant_IdOrderByAppliedAtDescCreatedAtDesc(UUID tenantId);
+    List<Loan> findAllByTenant_IdAndDeletedAtIsNullOrderByAppliedAtDescCreatedAtDesc(UUID tenantId);
 
-    List<Loan> findAllByTenant_IdAndStatusOrderByAppliedAtDescCreatedAtDesc(UUID tenantId, Loan.LoanStatus status);
+    List<Loan> findAllByTenant_IdAndStatusAndDeletedAtIsNullOrderByAppliedAtDescCreatedAtDesc(
+            UUID tenantId,
+            Loan.LoanStatus status
+    );
 
-    List<Loan> findAllByTenant_IdAndBorrower_IdOrderByAppliedAtDescCreatedAtDesc(UUID tenantId, UUID borrowerId);
+    List<Loan> findAllByTenant_IdAndBorrower_IdAndDeletedAtIsNullOrderByAppliedAtDescCreatedAtDesc(
+            UUID tenantId,
+            UUID borrowerId
+    );
 
     Optional<Loan> findByIdAndTenant_Id(UUID loanId, UUID tenantId);
 

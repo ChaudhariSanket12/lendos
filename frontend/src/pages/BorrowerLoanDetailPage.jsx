@@ -8,6 +8,7 @@ const statusStyles = {
   UNDER_ASSESSMENT: 'bg-yellow-100 text-yellow-800',
   APPROVED: 'bg-green-100 text-green-700',
   REJECTED: 'bg-red-100 text-red-700',
+  DELETED: 'bg-gray-100 text-gray-700',
   DISBURSED: 'bg-purple-100 text-purple-700',
   ACTIVE: 'bg-green-100 text-green-700',
   CLOSED: 'bg-gray-100 text-gray-700',
@@ -60,6 +61,8 @@ export default function BorrowerLoanDetailPage() {
     loadLoan()
   }, [loanId])
 
+  const displayStatus = loan?.isDeleted ? 'DELETED' : loan?.status
+
   return (
     <BorrowerLayout title="Loan Detail" subtitle="Review your submitted loan application">
       <button type="button" className="btn-secondary mb-4" onClick={() => navigate('/borrower/my-loans')}>
@@ -74,8 +77,8 @@ export default function BorrowerLoanDetailPage() {
           <div className="card">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <h3 className="text-lg font-semibold text-gray-800">Loan Overview</h3>
-              <span className={`inline-flex px-3 py-1 rounded text-xs font-medium ${statusStyles[loan.status] || 'bg-gray-100 text-gray-700'}`}>
-                {formatStatus(loan.status)}
+              <span className={`inline-flex px-3 py-1 rounded text-xs font-medium ${statusStyles[displayStatus] || 'bg-gray-100 text-gray-700'}`}>
+                {formatStatus(displayStatus)}
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -105,6 +108,41 @@ export default function BorrowerLoanDetailPage() {
               </div>
             </div>
           </div>
+
+          {loan.isDeleted ? (
+            <div className="card bg-gray-50 border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800 mb-3">Application Removed</h3>
+              <div className="text-sm text-gray-700 space-y-1">
+                <p>Your application has been removed from active records.</p>
+                <p><span className="font-medium">Reason:</span> {loan.rejectionMessage || '-'}</p>
+                <p><span className="font-medium">Deleted on:</span> {formatDate(loan.deletedAt)}</p>
+              </div>
+              <button
+                type="button"
+                className="btn-primary mt-4"
+                onClick={() => navigate('/borrower/apply-for-loan')}
+              >
+                Apply for New Loan →
+              </button>
+            </div>
+          ) : loan.status === 'REJECTED' ? (
+            <div className="card bg-red-50 border-red-200">
+              <h3 className="text-lg font-semibold text-red-800 mb-3">Application Rejected</h3>
+              <div className="text-sm text-red-900 space-y-1">
+                <p>Your application has been rejected.</p>
+                <p><span className="font-medium">Reason:</span> {loan.rejectionMessage || '-'}</p>
+                <p><span className="font-medium">Rejected on:</span> {formatDate(loan.rejectedAt)}</p>
+                <p>All your uploaded documents have been deleted from our system.</p>
+              </div>
+              <button
+                type="button"
+                className="btn-primary mt-4"
+                onClick={() => navigate('/borrower/apply-for-loan')}
+              >
+                Apply for New Loan →
+              </button>
+            </div>
+          ) : null}
 
           {loan.risk && (
             <div className="card">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { loansApi } from '../api/loans'
 
 const statusOptions = [
@@ -47,10 +47,18 @@ function formatCurrency(amount) {
 
 export default function LoansPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [loans, setLoans] = useState([])
   const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [successMessage, setSuccessMessage] = useState(location.state?.message || null)
+
+  useEffect(() => {
+    if (location.state?.message) {
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [location.pathname, location.state, navigate])
 
   useEffect(() => {
     const loadLoans = async () => {
@@ -93,6 +101,14 @@ export default function LoansPage() {
         </div>
 
         {error && <div className="alert-error mb-4">{error}</div>}
+        {successMessage && (
+          <div className="alert-success mb-4 flex items-center justify-between gap-3">
+            <span>{successMessage}</span>
+            <button type="button" className="text-sm text-green-700 hover:underline" onClick={() => setSuccessMessage(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
 
         <div className="card p-0 overflow-hidden">
           {loading ? (

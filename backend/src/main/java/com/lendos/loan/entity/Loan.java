@@ -3,6 +3,7 @@ package com.lendos.loan.entity;
 import com.lendos.borrower.entity.Borrower;
 import com.lendos.common.entity.BaseEntity;
 import com.lendos.identity.entity.Tenant;
+import com.lendos.identity.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -59,6 +60,22 @@ public class Loan extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String statusNotes;
+
+    @Column(name = "rejection_message", columnDefinition = "TEXT")
+    private String rejectionMessage;
+
+    @Column(name = "rejected_at")
+    private LocalDateTime rejectedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "rejected_by")
+    private User rejectedBy;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Column(name = "deleted_by")
+    private String deletedBy;
 
     public enum LoanStatus {
         APPLIED, UNDER_ASSESSMENT, APPROVED, REJECTED,

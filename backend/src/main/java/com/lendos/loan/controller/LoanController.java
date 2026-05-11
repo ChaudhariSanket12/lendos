@@ -61,4 +61,60 @@ public class LoanController {
                 loanService.updateLoanStatus(currentUser.getTenantId(), loanId, request)
         );
     }
+
+    @PostMapping("/{loanId}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Reject loan application, clean up borrower documents, and store rejection details")
+    public ResponseEntity<LoanDtos.LoanActionResponse> rejectLoan(
+            @AuthenticationPrincipal LendosUserDetails currentUser,
+            @PathVariable UUID loanId,
+            @RequestBody LoanDtos.RejectLoanRequest request
+    ) {
+        LoanDtos.LoanDetailResponse loan = loanService.rejectLoan(
+                currentUser.getTenantId(),
+                loanId,
+                request == null ? null : request.getReason(),
+                currentUser.getUser()
+        );
+
+        return ResponseEntity.ok(
+                LoanDtos.LoanActionResponse.builder()
+                        .loanId(loan.getId())
+                        .status(loan.getIsDeleted() != null && loan.getIsDeleted() ? "DELETED" : loan.getStatus().name())
+                        .rejectionMessage(loan.getRejectionMessage())
+                        .rejectedAt(loan.getRejectedAt())
+                        .rejectedBy(loan.getRejectedByName())
+                        .deletedAt(loan.getDeletedAt())
+                        .message("Loan rejected. All uploaded documents have been deleted.")
+                        .build()
+        );
+    }
+
+    @DeleteMapping("/{loanId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Soft-delete a rejected loan application")
+    public ResponseEntity<LoanDtos.LoanActionResponse> deleteLoanApplication(
+            @AuthenticationPrincipal LendosUserDetails currentUser,
+            @PathVariable UUID loanId,
+            @RequestBody(required = false) LoanDtos.DeleteLoanRequest request
+    ) {
+        LoanDtos.LoanDetailResponse loan = loanService.deleteLoanApplication(
+                currentUser.getTenantId(),
+                loanId,
+                request == null ? null : request.getFinalMessage(),
+                currentUser.getUser()
+        );
+
+        return ResponseEntity.ok(
+                LoanDtos.LoanActionResponse.builder()
+                        .loanId(loan.getId())
+                        .status("DELETED")
+                        .rejectionMessage(loan.getRejectionMessage())
+                        .rejectedAt(loan.getRejectedAt())
+                        .rejectedBy(loan.getRejectedByName())
+                        .deletedAt(loan.getDeletedAt())
+                        .message("Loan application has been deleted.")
+                        .build()
+        );
+    }
 }

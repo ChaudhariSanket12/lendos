@@ -5,6 +5,10 @@ import com.lendos.borrower.repository.BorrowerRepository;
 import com.lendos.common.exception.BusinessException;
 import com.lendos.common.exception.ResourceNotFoundException;
 import com.lendos.common.exception.ValidationException;
+import com.lendos.document.entity.BorrowerDocument;
+import com.lendos.document.repository.BorrowerDocumentRepository;
+import com.lendos.document.service.DocumentStorageService;
+import com.lendos.identity.entity.User;
 import com.lendos.loan.dto.LoanDtos;
 import com.lendos.loan.entity.Loan;
 import com.lendos.loan.repository.LoanRepository;
@@ -40,6 +44,21 @@ public class LoanService {
     private static final BigDecimal MAX_LOAN_AMOUNT = new BigDecimal("5000000");
     private static final BigDecimal ANNUAL_INTEREST_RATE = new BigDecimal("12.00");
     private static final Set<Integer> ALLOWED_TENURES = Set.of(3, 6, 12, 18, 24, 36, 48, 60);
+    private static final Set<String> ALLOWED_INDUSTRY_TYPES = Set.of(
+            "INFORMATION_TECHNOLOGY",
+            "MANUFACTURING",
+            "BANKING",
+            "HEALTHCARE",
+            "EDUCATION",
+            "RETAIL",
+            "CONSTRUCTION",
+            "OTHER"
+    );
+    private static final Set<String> ALLOWED_SALARY_PAYMENT_MODES = Set.of(
+            "BANK_TRANSFER",
+            "CHEQUE",
+            "CASH"
+    );
     private static final Set<Borrower.EmploymentType> ALLOWED_EMPLOYMENT_TYPES = EnumSet.of(
             Borrower.EmploymentType.SALARIED,
             Borrower.EmploymentType.GOVERNMENT,
@@ -50,12 +69,14 @@ public class LoanService {
     );
 
     private static final Map<Loan.LoanStatus, Set<Loan.LoanStatus>> ADMIN_TRANSITIONS = Map.of(
-            Loan.LoanStatus.APPLIED, Set.of(Loan.LoanStatus.UNDER_ASSESSMENT, Loan.LoanStatus.REJECTED),
-            Loan.LoanStatus.UNDER_ASSESSMENT, Set.of(Loan.LoanStatus.APPROVED, Loan.LoanStatus.REJECTED),
+            Loan.LoanStatus.APPLIED, Set.of(Loan.LoanStatus.UNDER_ASSESSMENT),
+            Loan.LoanStatus.UNDER_ASSESSMENT, Set.of(Loan.LoanStatus.APPROVED),
             Loan.LoanStatus.APPROVED, Set.of(Loan.LoanStatus.DISBURSED)
     );
 
     private final BorrowerRepository borrowerRepository;
+    private final BorrowerDocumentRepository borrowerDocumentRepository;
+    private final DocumentStorageService documentStorageService;
     private final LoanRepository loanRepository;
     private final RiskAssessmentRepository riskAssessmentRepository;
     private final RiskEvaluationService riskEvaluationService;
@@ -72,13 +93,31 @@ public class LoanService {
         validateLoanApplicationEligibility(borrower);
         validateLoanApplicationRequest(request);
 
+        BigDecimal rentExpense = scaleMoney(nonNegativeOrZero(request.getRentExpense()));
+        BigDecimal existingLoanEmis = scaleMoney(nonNegativeOrZero(request.getExistingLoanEmis()));
+        BigDecimal creditCardPayments = scaleMoney(nonNegativeOrZero(request.getCreditCardPayments()));
+        BigDecimal otherFixedExpenses = scaleMoney(nonNegativeOrZero(request.getOtherFixedExpenses()));
+        BigDecimal totalMonthlyObligations = rentExpense
+                .add(existingLoanEmis)
+                .add(creditCardPayments)
+                .add(otherFixedExpenses);
+
         borrower.setMonthlyIncome(scaleMoney(request.getMonthlyIncome()));
         borrower.setEmploymentType(request.getEmploymentType());
+        borrower.setEmployerName(normalize(request.getEmployerName()));
+        borrower.setIndustryType(normalizeEnumLike(request.getIndustryType()));
+        borrower.setSalaryPaymentMode(normalizeEnumLike(request.getSalaryPaymentMode()));
         borrower.setYearsInCurrentJob(scaleOneDecimal(request.getYearsInCurrentJob()));
         borrower.setTotalWorkExperience(scaleOneDecimal(request.getTotalWorkExperience()));
-        borrower.setExistingMonthlyObligations(scaleMoney(request.getExistingMonthlyObligations()));
+        borrower.setRentExpense(rentExpense);
+        borrower.setExistingLoanEmis(existingLoanEmis);
+        borrower.setCreditCardPayments(creditCardPayments);
+        borrower.setOtherFixedExpenses(otherFixedExpenses);
+        borrower.setExistingMonthlyObligations(totalMonthlyObligations);
         borrower.setResidenceType(request.getResidenceType());
-        borrower.setYearsAtCurrentResidence(scaleOneDecimal(request.getYearsAtCurrentResidence()));
+        borrower.setYearsAtCurrentResidence(
+                request.getYearsAtCurrentResidence() == null ? null : scaleOneDecimal(request.getYearsAtCurrentResidence())
+        );
         borrower.setCibilScore(request.getCibilScore());
 
         borrowerRepository.save(borrower);
@@ -106,7 +145,10 @@ public class LoanService {
         Borrower borrower = borrowerRepository.findByTenant_IdAndUser_Id(tenantId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Borrower", userId.toString()));
 
-        return loanRepository.findAllByTenant_IdAndBorrower_IdOrderByAppliedAtDescCreatedAtDesc(tenantId, borrower.getId())
+        return loanRepository.findAllByTenant_IdAndBorrower_IdAndDeletedAtIsNullOrderByAppliedAtDescCreatedAtDesc(
+                        tenantId,
+                        borrower.getId()
+                )
                 .stream()
                 .map(this::mapToLoanListItemResponse)
                 .collect(Collectors.toList());
@@ -129,10 +171,13 @@ public class LoanService {
     public List<LoanDtos.LoanListItemResponse> listTenantLoans(UUID tenantId, String status) {
         List<Loan> loans;
         if (status == null || status.isBlank()) {
-            loans = loanRepository.findAllByTenant_IdOrderByAppliedAtDescCreatedAtDesc(tenantId);
+            loans = loanRepository.findAllByTenant_IdAndDeletedAtIsNullOrderByAppliedAtDescCreatedAtDesc(tenantId);
         } else {
             Loan.LoanStatus parsed = parseLoanStatus(status);
-            loans = loanRepository.findAllByTenant_IdAndStatusOrderByAppliedAtDescCreatedAtDesc(tenantId, parsed);
+            loans = loanRepository.findAllByTenant_IdAndStatusAndDeletedAtIsNullOrderByAppliedAtDescCreatedAtDesc(
+                    tenantId,
+                    parsed
+            );
         }
 
         return loans.stream()
@@ -189,6 +234,88 @@ public class LoanService {
         return mapToLoanDetailResponse(updated);
     }
 
+    @Transactional
+    public LoanDtos.LoanDetailResponse rejectLoan(
+            UUID tenantId,
+            UUID loanId,
+            String reason,
+            User adminUser
+    ) {
+        String normalizedReason = normalize(reason);
+        if (normalizedReason == null) {
+            throw new BusinessException("REJECTION_REASON_REQUIRED", "Rejection reason is required");
+        }
+
+        Loan loan = loanRepository.findByIdAndTenant_Id(loanId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Loan", loanId.toString()));
+
+        if (loan.getDeletedAt() != null) {
+            throw new BusinessException("LOAN_ALREADY_DELETED", "Loan application is already deleted");
+        }
+
+        if (loan.getStatus() != Loan.LoanStatus.APPLIED && loan.getStatus() != Loan.LoanStatus.UNDER_ASSESSMENT) {
+            throw new BusinessException(
+                    "INVALID_LOAN_REJECTION_STATE",
+                    "Loan can only be rejected when in APPLIED or UNDER_ASSESSMENT status"
+            );
+        }
+
+        List<BorrowerDocument> documents = borrowerDocumentRepository.findByBorrower(loan.getBorrower());
+        for (BorrowerDocument document : documents) {
+            String storagePath = resolveStoragePath(document);
+            if (storagePath != null) {
+                documentStorageService.deleteDocument(storagePath);
+            }
+        }
+        borrowerDocumentRepository.deleteAll(documents);
+
+        loan.setStatus(Loan.LoanStatus.REJECTED);
+        loan.setRejectionMessage(normalizedReason);
+        loan.setRejectedAt(LocalDateTime.now());
+        loan.setRejectedBy(adminUser);
+        loan.setDeletedAt(null);
+        loan.setDeletedBy(null);
+
+        Loan saved = loanRepository.save(loan);
+        log.info("Loan rejected with cleanup: loanId={}, tenantId={}, deletedDocuments={}",
+                loanId, tenantId, documents.size());
+        return mapToLoanDetailResponse(saved);
+    }
+
+    @Transactional
+    public LoanDtos.LoanDetailResponse deleteLoanApplication(
+            UUID tenantId,
+            UUID loanId,
+            String finalMessage,
+            User adminUser
+    ) {
+        Loan loan = loanRepository.findByIdAndTenant_Id(loanId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Loan", loanId.toString()));
+
+        if (loan.getDeletedAt() != null) {
+            throw new BusinessException("LOAN_ALREADY_DELETED", "Loan application has already been deleted");
+        }
+
+        if (loan.getStatus() != Loan.LoanStatus.REJECTED) {
+            throw new BusinessException(
+                    "LOAN_DELETE_NOT_ALLOWED",
+                    "Only rejected applications can be deleted. Please reject first."
+            );
+        }
+
+        loan.setDeletedAt(LocalDateTime.now());
+        loan.setDeletedBy(adminUser.getFullName());
+        String normalizedFinalMessage = normalize(finalMessage);
+        if (normalizedFinalMessage != null) {
+            loan.setRejectionMessage(normalizedFinalMessage);
+        }
+
+        Loan saved = loanRepository.save(loan);
+        log.info("Loan soft-deleted: loanId={}, tenantId={}, deletedBy={}",
+                loanId, tenantId, adminUser.getId());
+        return mapToLoanDetailResponse(saved);
+    }
+
     private void validateLoanApplicationEligibility(Borrower borrower) {
         if (borrower.getStatus() == Borrower.BorrowerStatus.UNDER_REVIEW
                 || borrower.getStatus() == Borrower.BorrowerStatus.VERIFIED) {
@@ -216,6 +343,27 @@ public class LoanService {
             errors.put("employmentType", "Invalid employment type");
         }
 
+        String employerName = normalize(request.getEmployerName());
+        if (employerName == null || employerName.length() < 2) {
+            errors.put("employerName", "Employer or company name is required");
+        } else if (employerName.length() > 255) {
+            errors.put("employerName", "Employer or company name cannot exceed 255 characters");
+        }
+
+        String industryType = normalizeEnumLike(request.getIndustryType());
+        if (industryType == null) {
+            errors.put("industryType", "Industry type is required");
+        } else if (!ALLOWED_INDUSTRY_TYPES.contains(industryType)) {
+            errors.put("industryType", "Invalid industry type");
+        }
+
+        String salaryPaymentMode = normalizeEnumLike(request.getSalaryPaymentMode());
+        if (salaryPaymentMode == null) {
+            errors.put("salaryPaymentMode", "Salary payment mode is required");
+        } else if (!ALLOWED_SALARY_PAYMENT_MODES.contains(salaryPaymentMode)) {
+            errors.put("salaryPaymentMode", "Invalid salary payment mode");
+        }
+
         if (request.getYearsInCurrentJob() == null) {
             errors.put("yearsInCurrentJob", "Years in current job is required");
         } else {
@@ -240,14 +388,41 @@ public class LoanService {
             }
         }
 
-        if (request.getExistingMonthlyObligations() == null) {
-            errors.put("existingMonthlyObligations", "Existing monthly obligations is required");
-        } else {
-            if (request.getExistingMonthlyObligations().compareTo(BigDecimal.ZERO) < 0) {
-                errors.put("existingMonthlyObligations", "Existing monthly obligations cannot be negative");
-            } else if (request.getMonthlyIncome() != null
-                    && request.getExistingMonthlyObligations().compareTo(request.getMonthlyIncome()) > 0) {
-                errors.put("existingMonthlyObligations", "Existing monthly obligations cannot exceed monthly income");
+        if (request.getRentExpense() == null) {
+            errors.put("rentExpense", "Rent or mortgage amount is required");
+        } else if (request.getRentExpense().compareTo(BigDecimal.ZERO) < 0) {
+            errors.put("rentExpense", "Rent or mortgage amount cannot be negative");
+        }
+
+        if (request.getExistingLoanEmis() == null) {
+            errors.put("existingLoanEmis", "Existing loan EMIs amount is required");
+        } else if (request.getExistingLoanEmis().compareTo(BigDecimal.ZERO) < 0) {
+            errors.put("existingLoanEmis", "Existing loan EMIs amount cannot be negative");
+        }
+
+        if (request.getCreditCardPayments() == null) {
+            errors.put("creditCardPayments", "Credit card payments amount is required");
+        } else if (request.getCreditCardPayments().compareTo(BigDecimal.ZERO) < 0) {
+            errors.put("creditCardPayments", "Credit card payments amount cannot be negative");
+        }
+
+        if (request.getOtherFixedExpenses() == null) {
+            errors.put("otherFixedExpenses", "Other fixed expenses amount is required");
+        } else if (request.getOtherFixedExpenses().compareTo(BigDecimal.ZERO) < 0) {
+            errors.put("otherFixedExpenses", "Other fixed expenses amount cannot be negative");
+        }
+
+        if (!errors.containsKey("rentExpense")
+                && !errors.containsKey("existingLoanEmis")
+                && !errors.containsKey("creditCardPayments")
+                && !errors.containsKey("otherFixedExpenses")
+                && request.getMonthlyIncome() != null) {
+            BigDecimal totalMonthlyObligations = nonNegativeOrZero(request.getRentExpense())
+                    .add(nonNegativeOrZero(request.getExistingLoanEmis()))
+                    .add(nonNegativeOrZero(request.getCreditCardPayments()))
+                    .add(nonNegativeOrZero(request.getOtherFixedExpenses()));
+            if (totalMonthlyObligations.compareTo(request.getMonthlyIncome()) > 0) {
+                errors.put("existingLoanEmis", "Total monthly obligations cannot exceed monthly income");
             }
         }
 
@@ -268,13 +443,7 @@ public class LoanService {
             errors.put("loanPurpose", "Loan purpose is required");
         }
 
-        if (request.getResidenceType() == null) {
-            errors.put("residenceType", "Residence type is required");
-        }
-
-        if (request.getYearsAtCurrentResidence() == null) {
-            errors.put("yearsAtCurrentResidence", "Years at current residence is required");
-        } else {
+        if (request.getYearsAtCurrentResidence() != null) {
             validateRange(request.getYearsAtCurrentResidence(), BigDecimal.ZERO, new BigDecimal("50"),
                     "yearsAtCurrentResidence", "Years at current residence must be between 0 and 50", errors);
             if (!hasMaxOneDecimal(request.getYearsAtCurrentResidence())) {
@@ -321,6 +490,12 @@ public class LoanService {
     }
 
     private void validateStatusTransition(Loan.LoanStatus currentStatus, Loan.LoanStatus targetStatus) {
+        if (targetStatus == Loan.LoanStatus.REJECTED) {
+            throw new BusinessException(
+                    "REJECT_REQUIRES_WORKFLOW",
+                    "Use the reject endpoint to reject applications and clean up uploaded documents"
+            );
+        }
         Set<Loan.LoanStatus> allowed = ADMIN_TRANSITIONS.getOrDefault(currentStatus, Set.of());
         if (!allowed.contains(targetStatus)) {
             throw new BusinessException(
@@ -337,12 +512,42 @@ public class LoanService {
         return value.trim();
     }
 
+    private String normalizeEnumLike(String value) {
+        String normalized = normalize(value);
+        return normalized == null ? null : normalized.toUpperCase(Locale.ENGLISH).replace(' ', '_');
+    }
+
+    private BigDecimal nonNegativeOrZero(BigDecimal value) {
+        if (value == null || value.compareTo(BigDecimal.ZERO) < 0) {
+            return BigDecimal.ZERO;
+        }
+        return value;
+    }
+
     private BigDecimal scaleMoney(BigDecimal value) {
         return value.setScale(2, RoundingMode.HALF_UP);
     }
 
     private BigDecimal scaleOneDecimal(BigDecimal value) {
         return value.setScale(1, RoundingMode.HALF_UP);
+    }
+
+    private String resolveStoragePath(BorrowerDocument document) {
+        String explicitPath = normalize(document.getStoragePath());
+        if (explicitPath != null) {
+            return explicitPath;
+        }
+
+        String documentUrl = normalize(document.getDocumentUrl());
+        if (documentUrl == null) {
+            return null;
+        }
+        String marker = "/storage/v1/object/public/borrower-documents/";
+        int markerIndex = documentUrl.indexOf(marker);
+        if (markerIndex < 0) {
+            return null;
+        }
+        return documentUrl.substring(markerIndex + marker.length());
     }
 
     private LoanDtos.LoanResponse mapToLoanResponse(Loan loan) {
@@ -389,6 +594,12 @@ public class LoanService {
                 .appliedAt(loan.getAppliedAt())
                 .disbursementDate(loan.getDisbursementDate())
                 .statusNotes(loan.getStatusNotes())
+                .rejectionMessage(loan.getRejectionMessage())
+                .rejectedAt(loan.getRejectedAt())
+                .rejectedByName(loan.getRejectedBy() == null ? null : loan.getRejectedBy().getFullName())
+                .deletedAt(loan.getDeletedAt())
+                .deletedBy(loan.getDeletedBy())
+                .isDeleted(loan.getDeletedAt() != null)
                 .borrower(LoanDtos.BorrowerSnapshot.builder()
                         .id(borrower.getId())
                         .fullName(borrower.getFirstName() + " " + borrower.getLastName())
@@ -399,16 +610,41 @@ public class LoanService {
                         .aadhaarNumber(borrower.getAadhaarNumber())
                         .monthlyIncome(borrower.getMonthlyIncome())
                         .employmentType(borrower.getEmploymentType())
+                        .employerName(borrower.getEmployerName())
+                        .industryType(borrower.getIndustryType())
+                        .salaryPaymentMode(borrower.getSalaryPaymentMode())
                         .yearsInCurrentJob(borrower.getYearsInCurrentJob())
                         .totalWorkExperience(borrower.getTotalWorkExperience())
+                        .rentExpense(borrower.getRentExpense())
+                        .existingLoanEmis(borrower.getExistingLoanEmis())
+                        .creditCardPayments(borrower.getCreditCardPayments())
+                        .otherFixedExpenses(borrower.getOtherFixedExpenses())
                         .existingMonthlyObligations(borrower.getExistingMonthlyObligations())
                         .residenceType(borrower.getResidenceType())
                         .yearsAtCurrentResidence(borrower.getYearsAtCurrentResidence())
                         .cibilScore(borrower.getCibilScore())
+                        .documents(mapBorrowerDocuments(borrower))
                         .build())
                 .risk(mapRiskSnapshot(loan.getId()))
                 .createdAt(loan.getCreatedAt())
                 .updatedAt(loan.getUpdatedAt())
+                .build();
+    }
+
+    private List<LoanDtos.DocumentSnapshot> mapBorrowerDocuments(Borrower borrower) {
+        return borrowerDocumentRepository.findByBorrowerOrderByCreatedAtDesc(borrower)
+                .stream()
+                .map(this::mapDocumentSnapshot)
+                .toList();
+    }
+
+    private LoanDtos.DocumentSnapshot mapDocumentSnapshot(BorrowerDocument document) {
+        return LoanDtos.DocumentSnapshot.builder()
+                .id(document.getId())
+                .documentType(document.getDocumentType().name())
+                .documentUrl(document.getDocumentUrl())
+                .verificationStatus(document.getVerificationStatus().name())
+                .uploadedAt(document.getCreatedAt())
                 .build();
     }
 
