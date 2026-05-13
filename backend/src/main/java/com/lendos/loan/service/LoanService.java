@@ -644,6 +644,7 @@ public class LoanService {
                 .documentType(document.getDocumentType().name())
                 .documentUrl(document.getDocumentUrl())
                 .verificationStatus(document.getVerificationStatus().name())
+                .verifiedAt(document.getVerifiedAt())
                 .uploadedAt(document.getCreatedAt())
                 .build();
     }

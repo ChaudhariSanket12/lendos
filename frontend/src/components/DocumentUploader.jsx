@@ -21,7 +21,32 @@ function toDocumentViewModel(data, fallbackType) {
     verificationStatus: data?.verificationStatus || 'PENDING',
     filename: data?.filename,
     previewUrl: data?.previewUrl,
+    verifiedAt: data?.verifiedAt,
     uploadedAt: data?.uploadedAt,
+  }
+}
+
+function getVerificationBadge(status) {
+  if (status === 'VERIFIED') {
+    return {
+      tone: 'verified',
+      title: '🟢 Verified',
+      message: '✓ Verified — All checks passed',
+    }
+  }
+
+  if (status === 'REJECTED') {
+    return {
+      tone: 'rejected',
+      title: '🔴 Rejected',
+      message: '✗ Verification failed',
+    }
+  }
+
+  return {
+    tone: 'awaiting',
+    title: '⚪ Uploaded',
+    message: 'Uploaded — Awaiting Verification',
   }
 }
 
@@ -44,6 +69,10 @@ export default function DocumentUploader({
 
   const displayLabel = useMemo(() => getDocLabel(documentType), [documentType])
   const isVerified = documentData?.verificationStatus === 'VERIFIED'
+  const verificationBadge = useMemo(
+    () => getVerificationBadge(documentData?.verificationStatus || 'PENDING'),
+    [documentData?.verificationStatus]
+  )
 
   useEffect(() => {
     if (!existingDocument) return
@@ -264,7 +293,15 @@ export default function DocumentUploader({
                   %
                 </p>
               )}
-              <p>Status: {documentData.verificationStatus || 'PENDING'}</p>
+              <div className={`verification-badge ${verificationBadge.tone}`}>
+                {verificationBadge.title}
+              </div>
+              <p className="verification-message">{verificationBadge.message}</p>
+              {documentData.verifiedAt && (
+                <p className="verification-time">
+                  Verified at: {new Date(documentData.verifiedAt).toLocaleString()}
+                </p>
+              )}
             </div>
           </div>
           <div className="document-actions">

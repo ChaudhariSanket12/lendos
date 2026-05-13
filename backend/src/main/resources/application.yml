@@ -63,6 +63,11 @@ supabase:
   url: ${SUPABASE_URL}
   service-role-key: ${SUPABASE_SERVICE_ROLE_KEY}
 
+google:
+  cloud:
+    vision:
+      api-key: ${GOOGLE_VISION_API_KEY:}
+
 management:
   endpoints:
     web:

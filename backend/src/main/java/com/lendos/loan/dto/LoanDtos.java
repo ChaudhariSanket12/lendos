@@ -160,6 +160,7 @@ public class LoanDtos {
         private String documentType;
         private String documentUrl;
         private String verificationStatus;
+        private LocalDateTime verifiedAt;
         private LocalDateTime uploadedAt;
     }
 

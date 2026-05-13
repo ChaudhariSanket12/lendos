@@ -17,3 +17,8 @@ logging:
 supabase:
   url: ${SUPABASE_URL:https://your-project-id.supabase.co}
   service-role-key: ${SUPABASE_SERVICE_ROLE_KEY}
+
+google:
+  cloud:
+    vision:
+      api-key: ${GOOGLE_VISION_API_KEY}

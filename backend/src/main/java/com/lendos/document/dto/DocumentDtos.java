@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 public class DocumentDtos {
@@ -35,6 +36,20 @@ public class DocumentDtos {
         private Long originalSize;
         private Long compressedSize;
         private String verificationStatus;
+        private LocalDateTime verifiedAt;
         private LocalDateTime uploadedAt;
+    }
+
+    @Getter
+    @Builder
+    public static class AdminVerificationResponse {
+        private UUID documentId;
+        private String documentType;
+        private String verificationStatus;
+        private LocalDateTime verifiedAt;
+        private String ocrText;
+        private Map<String, String> extractedData;
+        private Map<String, String> profileData;
+        private Map<String, Boolean> matches;
     }
 }

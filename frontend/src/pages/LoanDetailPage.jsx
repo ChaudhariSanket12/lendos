@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { documentsApi } from '../api/documents'
 import { loansApi } from '../api/loans'
 
 const statusStyles = {
@@ -43,7 +44,13 @@ function formatDocumentType(type) {
 function statusBadgeClass(status) {
   if (status === 'VERIFIED') return 'bg-green-100 text-green-700'
   if (status === 'REJECTED') return 'bg-red-100 text-red-700'
-  return 'bg-yellow-100 text-yellow-800'
+  return 'bg-gray-100 text-gray-700'
+}
+
+function getDocumentStatusText(status) {
+  if (status === 'VERIFIED') return '✅ VERIFIED'
+  if (status === 'REJECTED') return '❌ REJECTED'
+  return '⏳ Awaiting Verification'
 }
 
 export default function LoanDetailPage() {
@@ -58,6 +65,8 @@ export default function LoanDetailPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
   const [finalMessage, setFinalMessage] = useState('')
+  const [verifyingDocuments, setVerifyingDocuments] = useState({})
+  const [verificationResults, setVerificationResults] = useState({})
 
   const loadLoan = async () => {
     setLoading(true)
@@ -134,6 +143,45 @@ export default function LoanDetailPage() {
       setError(getErrorMessage(err, 'Failed to delete application.'))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleVerifyDocument = async (doc) => {
+    if (!doc?.id) return
+
+    setVerifyingDocuments((prev) => ({ ...prev, [doc.id]: true }))
+    setError(null)
+    setSuccessMessage(null)
+
+    try {
+      const response = await documentsApi.verifyDocument(doc.id)
+      setVerificationResults((prev) => ({ ...prev, [doc.id]: response }))
+
+      setLoan((prev) => {
+        if (!prev?.borrower?.documents) return prev
+        return {
+          ...prev,
+          borrower: {
+            ...prev.borrower,
+            documents: prev.borrower.documents.map((item) =>
+              item.id === doc.id
+                ? {
+                    ...item,
+                    verificationStatus: response.verificationStatus,
+                    verifiedAt: response.verifiedAt,
+                  }
+                : item
+            ),
+          },
+        }
+      })
+
+      setSuccessMessage(`${formatDocumentType(doc.documentType)} verification completed.`)
+    } catch (err) {
+      console.error('[LoanDetailPage] Failed to verify document', err)
+      setError(getErrorMessage(err, 'Failed to verify document.'))
+    } finally {
+      setVerifyingDocuments((prev) => ({ ...prev, [doc.id]: false }))
     }
   }
 
@@ -294,24 +342,22 @@ export default function LoanDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {['PAN', 'AADHAAR'].map((type) => {
                   const doc = loan.borrower?.documents?.find((item) => item.documentType === type)
+                  const isVerifying = doc?.id ? Boolean(verifyingDocuments[doc.id]) : false
+                  const verificationResult = doc?.id ? verificationResults[doc.id] : null
+                  const currentStatus = doc?.verificationStatus || 'PENDING'
                   return (
                     <div key={type} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                      <div className="flex items-center justify-between gap-2 mb-3">
-                        <p className="text-sm font-medium text-gray-800">{formatDocumentType(type)}</p>
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${statusBadgeClass(doc?.verificationStatus)}`}>
-                          {formatStatus(doc?.verificationStatus || 'PENDING')}
-                        </span>
-                      </div>
                       {doc?.documentUrl ? (
                         <div className="space-y-3">
-                          <a
-                            href={doc.documentUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-blue-700 hover:underline"
-                          >
-                            Open document ↗
-                          </a>
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <p className="text-sm font-medium text-gray-800">
+                              📷 {formatDocumentType(type)} {currentStatus === 'VERIFIED' ? '✅' : ''}
+                            </p>
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${statusBadgeClass(currentStatus)}`}>
+                              {formatStatus(currentStatus)}
+                            </span>
+                          </div>
+
                           <a
                             href={doc.documentUrl}
                             target="_blank"
@@ -327,6 +373,90 @@ export default function LoanDetailPage() {
                           <p className="text-xs text-gray-500">
                             Uploaded at: {formatDate(doc.uploadedAt)}
                           </p>
+                          {isVerifying ? (
+                            <div className="text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded p-2">
+                              <p>Status: 🔄 Verifying... (3-5 seconds)</p>
+                              <p>Calling OCR API...</p>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-700">Status: {getDocumentStatusText(currentStatus)}</p>
+                          )}
+
+                          <div className="flex flex-wrap gap-2">
+                            <a
+                              href={doc.documentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-secondary"
+                            >
+                              View Full Image
+                            </a>
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              onClick={() => handleVerifyDocument(doc)}
+                              disabled={isVerifying}
+                            >
+                              {isVerifying
+                                ? 'Verifying...'
+                                : currentStatus === 'PENDING'
+                                ? '🔄 Verify Document'
+                                : '🔄 Re-verify'}
+                            </button>
+                          </div>
+
+                          {verificationResult && (
+                            <div className="border border-gray-200 bg-white rounded p-3 space-y-2">
+                              <p className="text-xs font-semibold text-gray-800">OCR Results</p>
+                              {type === 'PAN' ? (
+                                <>
+                                  <p className="text-xs text-gray-700">
+                                    Extracted PAN: {verificationResult.extractedData?.panNumber || '-'}
+                                  </p>
+                                  <p className="text-xs text-gray-700">
+                                    Profile PAN: {verificationResult.profileData?.panNumber || '-'}
+                                  </p>
+                                  <p className="text-xs font-medium">
+                                    {verificationResult.matches?.panMatch ? '✅ PAN Match' : '❌ PAN Mismatch!'}
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-xs text-gray-700">
+                                    Extracted Aadhaar: {verificationResult.extractedData?.aadhaarNumber || '-'}
+                                  </p>
+                                  <p className="text-xs text-gray-700">
+                                    Profile Aadhaar: {verificationResult.profileData?.aadhaarNumber || '-'}
+                                  </p>
+                                  <p className="text-xs font-medium">
+                                    {verificationResult.matches?.aadhaarMatch ? '✅ Aadhaar Match' : '❌ Aadhaar Mismatch!'}
+                                  </p>
+                                  <p className="text-xs text-gray-700">
+                                    Extracted Name: {verificationResult.extractedData?.nameOnCard || '-'}
+                                  </p>
+                                  <p className="text-xs text-gray-700">
+                                    Profile Name: {verificationResult.profileData?.fullName || '-'}
+                                  </p>
+                                  <p className="text-xs font-medium">
+                                    {verificationResult.matches?.nameMatch ? '✅ Name Match' : '❌ Name Mismatch'}
+                                  </p>
+                                </>
+                              )}
+
+                              <p className="text-xs text-gray-700">
+                                Status: {verificationResult.verificationStatus}
+                              </p>
+                              <p className="text-xs text-gray-700">
+                                Verified at: {formatDate(verificationResult.verifiedAt)}
+                              </p>
+                              <div>
+                                <p className="text-xs font-medium text-gray-700">OCR Text</p>
+                                <pre className="text-[11px] whitespace-pre-wrap bg-gray-50 border border-gray-200 rounded p-2 mt-1 max-h-28 overflow-y-auto">
+                                  {verificationResult.ocrText || '-'}
+                                </pre>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <p className="text-sm text-gray-600">No document uploaded.</p>

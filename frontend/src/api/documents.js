@@ -73,4 +73,18 @@ export const documentsApi = {
       throw error
     }
   },
+
+  verifyDocument: async (documentId) => {
+    const path = `/api/v1/admin/documents/${documentId}/verify`
+    const url = buildUrl(path)
+    console.log('[documentsApi] verifyDocument request', { url })
+    try {
+      const response = await apiClient.post(path)
+      logSuccess('verifyDocument', url, response.data)
+      return response.data
+    } catch (error) {
+      logError('verifyDocument', url, error)
+      throw error
+    }
+  },
 }

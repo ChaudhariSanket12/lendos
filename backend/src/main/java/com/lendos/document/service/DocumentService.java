@@ -14,8 +14,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -26,6 +29,10 @@ public class DocumentService {
 
     private final BorrowerDocumentRepository borrowerDocumentRepository;
     private final DocumentStorageService documentStorageService;
+    private final VisionOcrService visionOcrService;
+    private final PanCardParser panCardParser;
+    private final AadhaarCardParser aadhaarCardParser;
+    private final DocumentVerificationService documentVerificationService;
 
     public DocumentDtos.DocumentResponse uploadDocument(
             Borrower borrower,
@@ -124,6 +131,66 @@ public class DocumentService {
         log.info("Borrower document deleted: borrowerId={}, documentId={}", borrower.getId(), documentId);
     }
 
+    public DocumentDtos.AdminVerificationResponse verifyDocumentForTenant(UUID tenantId, UUID documentId) {
+        BorrowerDocument document = borrowerDocumentRepository.findById(documentId)
+                .orElseThrow(() -> new ResourceNotFoundException("BorrowerDocument", documentId.toString()));
+
+        Borrower borrower = document.getBorrower();
+        if (!borrower.getTenant().getId().equals(tenantId)) {
+            throw new BusinessException("DOCUMENT_ACCESS_DENIED", "Document not found for the current tenant");
+        }
+
+        log.info("[VisionOCR] Admin verification started: tenantId={}, documentId={}", tenantId, documentId);
+
+        String ocrText = visionOcrService.extractText(document.getDocumentUrl());
+        Map<String, String> parsedData = switch (document.getDocumentType()) {
+            case PAN -> panCardParser.parse(ocrText);
+            case AADHAAR -> aadhaarCardParser.parse(ocrText);
+        };
+
+        DocumentVerificationService.VerificationResult verificationResult = documentVerificationService.evaluate(
+                parsedData,
+                borrower,
+                document.getDocumentType()
+        );
+
+        VerificationStatus status = verificationResult.getVerificationStatus();
+        LocalDateTime verifiedAt = LocalDateTime.now();
+
+        document.setOcrText(ocrText);
+        document.setVerificationStatus(status);
+        document.setVerifiedAt(verifiedAt);
+        borrowerDocumentRepository.save(document);
+
+        Map<String, String> extractedData = new LinkedHashMap<>();
+        extractedData.put("panNumber", parsedData.get("panNumber"));
+        extractedData.put("aadhaarNumber", parsedData.get("aadhaarNumber"));
+        extractedData.put("nameOnCard", parsedData.get("nameOnCard"));
+
+        Map<String, String> profileData = new LinkedHashMap<>();
+        profileData.put("panNumber", borrower.getPanNumber());
+        profileData.put("aadhaarNumber", borrower.getAadhaarNumber());
+        profileData.put("fullName", formatFullName(borrower));
+
+        Map<String, Boolean> matches = new LinkedHashMap<>();
+        matches.put("panMatch", verificationResult.isPanMatch());
+        matches.put("aadhaarMatch", verificationResult.isAadhaarMatch());
+        matches.put("nameMatch", verificationResult.isNameMatch());
+
+        log.info("[Verification] Admin verification completed: documentId={}, status={}", documentId, status);
+
+        return DocumentDtos.AdminVerificationResponse.builder()
+                .documentId(document.getId())
+                .documentType(document.getDocumentType().name())
+                .verificationStatus(status.name())
+                .verifiedAt(verifiedAt)
+                .ocrText(ocrText)
+                .extractedData(extractedData)
+                .profileData(profileData)
+                .matches(matches)
+                .build();
+    }
+
     public DocumentType parseDocumentType(String rawDocumentType) {
         String normalized = normalize(rawDocumentType);
         if (!StringUtils.hasText(normalized)) {
@@ -148,6 +215,7 @@ public class DocumentService {
                 .originalSize(document.getOriginalSize())
                 .compressedSize(document.getCompressedSize())
                 .verificationStatus(document.getVerificationStatus().name())
+                .verifiedAt(document.getVerifiedAt())
                 .uploadedAt(document.getCreatedAt())
                 .build();
     }
@@ -157,5 +225,11 @@ public class DocumentService {
             return null;
         }
         return value.trim();
+    }
+
+    private String formatFullName(Borrower borrower) {
+        return String.format("%s %s",
+                borrower.getFirstName() == null ? "" : borrower.getFirstName().trim(),
+                borrower.getLastName() == null ? "" : borrower.getLastName().trim()).trim();
     }
 }
